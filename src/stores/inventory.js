@@ -265,13 +265,26 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('addProduct')
       
       try {
-        // Simplified product structure (removed retail price and description)
+        // Use the updated product structure with unitConfig
         const newProduct = {
           name: productData.name,
           categoryId: productData.categoryId,
           vendorId: productData.vendorId,
-          lowInventoryThreshold: productData.lowInventoryThreshold || 10,
-          units: productData.units || { type: 'item', conversionRate: 1 }
+          lowInventoryThreshold: productData.lowInventoryThreshold || 0,
+          thresholdUnit: productData.thresholdUnit || 'item',
+          thresholdInItems: productData.thresholdInItems || 0,
+          unitConfig: productData.unitConfig || {
+            structure: 'item-case',
+            item: { type: 'item', conversionRate: 1 },
+            package: { type: 'package', conversionRate: 0 },
+            case: { type: 'case', conversionRate: 1 },
+            totalItemsPerCase: 1
+          }
+        }
+        
+        // Make sure not to send the legacy 'units' field to Firestore
+        if ('units' in newProduct) {
+          delete newProduct.units;
         }
         
         const result = await firebaseService.addDocument(
@@ -291,12 +304,20 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('updateProduct')
       
       try {
+        // Remove invalid units field and use unitConfig instead
         const updatedData = {
           name: productData.name,
           categoryId: productData.categoryId,
           vendorId: productData.vendorId,
-          lowInventoryThreshold: productData.lowInventoryThreshold,
-          units: productData.units
+          lowInventoryThreshold: productData.lowInventoryThreshold || 0,
+          thresholdUnit: productData.thresholdUnit || 'item',
+          thresholdInItems: productData.thresholdInItems || 0,
+          unitConfig: productData.unitConfig || {}
+        }
+        
+        // Make sure not to pass 'units' field to Firestore which would cause validation errors
+        if ('units' in updatedData) {
+          delete updatedData.units;
         }
         
         const result = await firebaseService.updateDocument(
@@ -348,9 +369,19 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('addOrder')
       
       try {
+        console.log('Adding new order with data:', orderData);
+        
         const newOrder = {
           ...orderData,
-          status: 'pending'
+          status: orderData.status || 'pending' // Default to pending but keep status if provided
+        }
+        
+        // Ensure item quantities are numbers
+        if (newOrder.items && Array.isArray(newOrder.items)) {
+          newOrder.items = newOrder.items.map(item => ({
+            ...item,
+            quantity: Number(item.quantity) || 0 // Convert to number
+          }));
         }
         
         const result = await firebaseService.addDocument(
@@ -359,6 +390,13 @@ export const useInventoryStore = defineStore('inventory', {
         )
         
         this.orders.push(result)
+        
+        // If order is already marked as received upon creation, update inventory right away
+        if (result.status === 'received') {
+          console.log('New order is already received, updating inventory...');
+          await this.updateInventoryFromOrder(result);
+        }
+        
         return result
       } catch (error) {
         this.setError('addOrder', error)
@@ -370,6 +408,11 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('updateOrder')
       
       try {
+        console.log(`Updating order ${id} with data:`, orderData);
+        
+        // First, ensure we have the latest inventory data before processing
+        await this.fetchInventory(true);
+        
         const result = await firebaseService.updateDocument(
           firebaseService.collections.ORDERS,
           id,
@@ -378,13 +421,19 @@ export const useInventoryStore = defineStore('inventory', {
         
         const index = this.orders.findIndex(order => order.id === id)
         if (index !== -1) {
-          this.orders[index] = { ...this.orders[index], ...orderData }
+          // Create updated order object with all data
+          const updatedOrder = { ...this.orders[index], ...orderData };
+          this.orders[index] = updatedOrder;
           
           // If order is marked as received, update inventory
           if (orderData.status === 'received') {
-            await this.updateInventoryFromOrder(this.orders[index])
+            console.log('Order marked as received, updating inventory...');
+            await this.updateInventoryFromOrder(updatedOrder);
           }
         }
+        
+        // Refresh inventory after an order is saved to ensure we have the latest data
+        await this.fetchInventory(true);
         
         return result
       } catch (error) {
@@ -406,12 +455,12 @@ export const useInventoryStore = defineStore('inventory', {
     },
     
     // Inventory CRUD
-    async fetchInventory() {
+    async fetchInventory(forceRefresh = false) {
       this.loading.inventory = true
       this.clearError('fetchInventory')
       
       try {
-        this.inventory = await firebaseService.getInventory()
+        this.inventory = await firebaseService.getInventory(!forceRefresh)
       } catch (error) {
         this.setError('fetchInventory', error)
         throw error
@@ -420,31 +469,67 @@ export const useInventoryStore = defineStore('inventory', {
       }
     },
     
-    async updateInventory(productId, quantity) {
+    async updateInventory(productId, quantityInput) {
       this.clearError('updateInventory')
       
       try {
+        // Handle both object and primitive quantity values
+        let numericQuantity;
+        let lastUpdated = new Date().toISOString();
+        
+        // Check if quantity is an object (from HomeView.vue) or a primitive (from updateInventoryFromOrder)
+        if (typeof quantityInput === 'object' && quantityInput !== null) {
+          console.log(`updateInventory called with object:`, quantityInput);
+          if (quantityInput.quantity !== undefined) {
+            numericQuantity = Number(quantityInput.quantity) || 0;
+          } else {
+            // Default to 0 if quantity is not provided in the object
+            numericQuantity = 0;
+          }
+          
+          // Use provided lastUpdated if available
+          if (quantityInput.lastUpdated) {
+            lastUpdated = quantityInput.lastUpdated;
+          }
+        } else {
+          // Direct quantity value passed
+          numericQuantity = Number(quantityInput) || 0;
+        }
+        
+        console.log(`updateInventory processing product ${productId} with final quantity: ${numericQuantity}`);
+        
         const existingInventory = this.inventory.find(inv => inv.productId === productId)
         
         if (existingInventory) {
+          console.log(`Found existing inventory for product ${productId}: ${JSON.stringify(existingInventory)}`);
+          
           // Update existing inventory
           const result = await firebaseService.updateDocument(
             firebaseService.collections.INVENTORY,
             existingInventory.id,
-            { quantity }
+            { 
+              quantity: numericQuantity,  // Use numeric quantity for Firestore
+              lastUpdated: lastUpdated
+            }
           )
           
+          // Update local state with the same numeric quantity
           const index = this.inventory.findIndex(inv => inv.id === existingInventory.id)
           if (index !== -1) {
-            this.inventory[index].quantity = quantity
+            this.inventory[index].quantity = numericQuantity
+            this.inventory[index].lastUpdated = lastUpdated
+            console.log(`Local inventory updated to: ${numericQuantity}`);
           }
           
           return result
         } else {
+          console.log(`No existing inventory for product ${productId}, creating new record`);
+          
           // Create new inventory record
           const newInventory = {
             productId,
-            quantity
+            quantity: numericQuantity,
+            lastUpdated: lastUpdated
           }
           
           const result = await firebaseService.addDocument(
@@ -464,15 +549,24 @@ export const useInventoryStore = defineStore('inventory', {
     async updateInventoryFromOrder(order) {
       if (!order.items) return
       
+      console.log('Processing received order:', order);
+      
       for (const item of order.items) {
         try {
-          const currentInventory = this.inventory.find(inv => inv.productId === item.productId)
-          const currentQuantity = currentInventory ? currentInventory.quantity : 0
-          const newQuantity = currentQuantity + item.quantity
+          // Make sure we get the latest inventory data
+          const currentInventory = this.inventory.find(inv => inv.productId === item.productId);
+          // Ensure we convert to number to avoid string concatenation issues
+          const currentQuantity = currentInventory ? Number(currentInventory.quantity) || 0 : 0;
+          // Convert item quantity to number as well
+          const itemQuantity = Number(item.quantity) || 0;
+          // Calculate new quantity by adding order quantity to current inventory
+          const newQuantity = currentQuantity + itemQuantity;
           
-          await this.updateInventory(item.productId, newQuantity)
+          console.log(`Updating inventory for product ${item.productId}: Current: ${currentQuantity}, Adding: ${itemQuantity}, New: ${newQuantity}`);
+          
+          await this.updateInventory(item.productId, newQuantity);
         } catch (error) {
-          console.error('Error updating inventory from order:', error)
+          console.error('Error updating inventory from order:', error);
         }
       }
     },

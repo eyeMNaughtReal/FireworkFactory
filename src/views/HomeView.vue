@@ -1,63 +1,104 @@
 <template>
-  <div class="home">
-    <header class="hero">
-      <h1>🎆 Firework Factory</h1>
-      <p>Professional Firework Inventory Management System</p>
-    </header>
+  <div class="page-container">
+    <div class="page-header">
+      <h1>Dashboard Overview</h1>
+      <div class="header-actions">
+        <button class="btn-primary" @click="navigateToAddOrder">
+          Quick Add Order
+        </button>
+      </div>
+    </div>
 
-    <div class="dashboard">
-      <div class="stats-grid">
-        <div class="stat-card">
-          <h3>Total Products</h3>
-          <div class="stat-number">{{ totalProducts }}</div>
+    <div class="dashboard-grid">
+      <!-- Low Stock Products Table -->
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h2 class="card-title">Low Stock Products</h2>
+          <router-link to="/inventory" class="view-all-link">View All</router-link>
         </div>
-        
-        <div class="stat-card">
-          <h3>Low Stock Items</h3>
-          <div class="stat-number warning">{{ lowStockCount }}</div>
-        </div>
-        
-        <div class="stat-card">
-          <h3>Pending Orders</h3>
-          <div class="stat-number">{{ pendingOrdersCount }}</div>
-        </div>
-        
-        <div class="stat-card">
-          <h3>Categories</h3>
-          <div class="stat-number">{{ totalCategories }}</div>
+        <div class="table-container">
+          <table class="data-table" v-if="lowStockProducts.length > 0">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Current Stock</th>
+                <th>Threshold</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="product in lowStockProducts.slice(0, 10)" :key="product.id">
+                <td>
+                  <div class="product-info">
+                    <div class="product-name">{{ product.name }}</div>
+                    <div class="product-category">{{ getCategoryName(product.categoryId) }}</div>
+                  </div>
+                </td>
+                <td>
+                  <span class="stock-quantity">{{ getProductStock(product.id) }}</span>
+                </td>
+                <td>
+                  <span class="threshold-value">{{ getProductThreshold(product) }}</span>
+                </td>
+                <td>
+                  <span class="status-badge status-low">Low Stock</span>
+                </td>
+                <td>
+                  <button class="btn-small btn-primary" @click="createOrderForProduct(product)">
+                    Order Now
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty-state">
+            <p>No low stock products - everything looks good! 🎉</p>
+          </div>
         </div>
       </div>
 
-      <div class="quick-actions">
-        <h2>Quick Actions</h2>
-        <div class="action-buttons">
-          <router-link to="/products" class="action-btn primary">
-            📦 Manage Products
-          </router-link>
-          <router-link to="/inventory" class="action-btn">
-            📊 View Inventory
-          </router-link>
-          <router-link to="/orders" class="action-btn">
-            🛒 Process Orders
-          </router-link>
-          <router-link to="/categories" class="action-btn">
-            🏷️ Manage Categories
-          </router-link>
-          <router-link to="/vendors" class="action-btn">
-            🏢 Manage Vendors
-          </router-link>
+      <!-- Ordered Status Orders Table -->
+      <div class="dashboard-card">
+        <div class="card-header">
+          <h2 class="card-title">Pending Orders</h2>
+          <router-link to="/orders?status=ordered" class="view-all-link">View All</router-link>
         </div>
-      </div>
-
-      <div class="recent-activity">
-        <h2>Recent Activity</h2>
-        <div class="activity-list">
-          <div class="activity-item" v-for="order in recentOrders" :key="order.id">
-            <div class="activity-icon">📋</div>
-            <div class="activity-content">
-              <h4>New Order from {{ order.customerName }}</h4>
-              <p>Total: ${{ (order.total !== undefined ? order.total : calculateOrderTotal(order)).toFixed(2) }} • {{ formatDate(order.createdAt) }}</p>
-            </div>
+        <div class="table-container">
+          <table class="data-table" v-if="orderedStatusOrders.length > 0">
+            <thead>
+              <tr>
+                <th>Order #</th>
+                <th>Order Date</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in orderedStatusOrders.slice(0, 10)" :key="order.id">
+                <td>
+                  <span class="order-number">{{ order.orderNumber || order.id.slice(-6) }}</span>
+                </td>
+                <td>
+                  <span class="order-date">{{ formatDate(order.orderDate || order.createdAt) }}</span>
+                </td>
+                <td>
+                  <span class="item-count">{{ order.items?.length || 0 }} items</span>
+                </td>
+                <td>
+                  <span class="order-total">${{ (order.total || calculateOrderTotal(order)).toFixed(2) }}</span>
+                </td>
+                <td>
+                  <button class="btn-small btn-success" @click="markOrderReceived(order)">
+                    Mark Received
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="empty-state">
+            <p>No pending orders - all caught up! ✅</p>
           </div>
         </div>
       </div>
@@ -68,219 +109,422 @@
 <script>
 import { computed, onMounted } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
+import { useRouter } from 'vue-router'
 
 export default {
   name: 'HomeView',
   setup() {
     const store = useInventoryStore()
+    const router = useRouter()
 
     onMounted(async () => {
-      // Initialize store data from Firebase
       try {
-        await store.initializeStore()
+        await Promise.all([
+          store.products.length === 0 ? store.fetchProducts() : Promise.resolve(),
+          store.categories.length === 0 ? store.fetchCategories() : Promise.resolve(),
+          store.vendors.length === 0 ? store.fetchVendors() : Promise.resolve(),
+          store.orders.length === 0 ? store.fetchOrders() : Promise.resolve(),
+          store.inventory.length === 0 ? store.fetchInventory() : Promise.resolve()
+        ])
       } catch (error) {
-        console.error('Failed to initialize store:', error)
+        console.error('Failed to load dashboard data:', error)
       }
     })
 
-    const totalProducts = computed(() => store.products.length)
-    const lowStockCount = computed(() => store.getLowStockProducts().length)
-    const pendingOrdersCount = computed(() => store.getPendingOrders.length)
-    const totalCategories = computed(() => store.categories.length)
-    const recentOrders = computed(() => 
-      store.orders.slice(-3).reverse()
-    )
+    // Get low stock products based on inventory
+    const lowStockProducts = computed(() => {
+      return store.getLowStockProducts()
+    })
 
-    const formatDate = (dateString) => {
-      return new Date(dateString).toLocaleDateString()
+    // Get orders with pending/ordered status (not received or cancelled)
+    const orderedStatusOrders = computed(() => {
+      return store.orders.filter(order => 
+        order.status && 
+        order.status !== 'received' && 
+        order.status !== 'cancelled'
+      ).sort((a, b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt))
+    })
+
+    const getCategoryName = (categoryId) => {
+      const category = store.categories.find(c => c.id === categoryId)
+      return category ? category.name : 'Unknown'
+    }
+
+    const getProductStock = (productId) => {
+      const inventoryItem = store.inventory.find(inv => inv.productId === productId)
+      return inventoryItem ? inventoryItem.quantity : 0
+    }
+
+    const getProductThreshold = (product) => {
+      return product.thresholdInItems || product.lowInventoryThreshold || 0
+    }
+
+    const formatDate = (dateValue) => {
+      if (!dateValue) return 'N/A'
+      
+      // Handle Firestore timestamps
+      if (typeof dateValue === 'object') {
+        if (typeof dateValue.toDate === 'function') {
+          return dateValue.toDate().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })
+        }
+        if ('seconds' in dateValue) {
+          return new Date(dateValue.seconds * 1000).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })
+        }
+      }
+      
+      return new Date(dateValue).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
     }
 
     const calculateOrderTotal = (order) => {
-      // Fallback function to calculate order total
-      if (!order.items || !Array.isArray(order.items)) return 0;
-      return order.items.reduce((sum, item) => sum + (item.price || item.unitCost || 0) * (item.quantity || 0), 0);
+      if (!order.items || !Array.isArray(order.items)) return 0
+      return order.items.reduce((sum, item) => 
+        sum + (item.unitCost || 0) * (item.quantity || 0), 0)
+    }
+
+    const navigateToAddOrder = () => {
+      router.push('/orders?action=add')
+    }
+
+    const createOrderForProduct = (product) => {
+      // Navigate to orders page with product pre-selected
+      router.push(`/orders?action=add&productId=${product.id}`)
+    }
+
+    const markOrderReceived = async (order) => {
+      try {
+        await store.updateOrder(order.id, { 
+          status: 'received',
+          receivedDate: new Date().toISOString()
+        })
+        
+        // Update inventory for received order
+        await store.fetchInventory()
+        
+        await Promise.all(order.items.map(async (item) => {
+          const inventoryItem = store.getInventoryByProduct(item.productId)
+          const currentQuantity = inventoryItem ? inventoryItem.quantity : 0
+          
+          // Calculate items to add based on unit configuration
+          const product = store.products.find(p => p.id === item.productId)
+          let itemsToAdd = item.quantity
+          
+          if (product && product.unitConfig) {
+            switch (item.unit) {
+              case 'case':
+                if (product.unitConfig.structure === 'item-package-case') {
+                  itemsToAdd = item.quantity * product.unitConfig.totalItemsPerCase
+                } else {
+                  itemsToAdd = item.quantity * product.unitConfig.case.conversionRate
+                }
+                break
+              case 'pack':
+                if (product.unitConfig.structure === 'item-package-case') {
+                  itemsToAdd = item.quantity * product.unitConfig.package.conversionRate
+                }
+                break
+              case 'item':
+                itemsToAdd = item.quantity
+                break
+            }
+          }
+          
+          const newQuantity = currentQuantity + itemsToAdd
+          
+          // Always use numeric value for consistency
+          if (!inventoryItem) {
+            await store.updateInventory(item.productId, itemsToAdd)
+          } else {
+            await store.updateInventory(item.productId, newQuantity)
+          }
+        }))
+        
+      } catch (error) {
+        console.error('Failed to mark order as received:', error)
+      }
     }
 
     return {
-      totalProducts,
-      lowStockCount,
-      pendingOrdersCount,
-      totalCategories,
-      recentOrders,
+      lowStockProducts,
+      orderedStatusOrders,
+      getCategoryName,
+      getProductStock,
+      getProductThreshold,
       formatDate,
-      calculateOrderTotal
+      calculateOrderTotal,
+      navigateToAddOrder,
+      createOrderForProduct,
+      markOrderReceived
     }
   }
 }
 </script>
 
 <style scoped>
-.home {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.hero {
-  text-align: center;
-  margin-bottom: 40px;
-  padding: 40px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 12px;
-}
-
-.hero h1 {
-  font-size: 3rem;
-  margin-bottom: 10px;
-}
-
-.hero p {
-  font-size: 1.2rem;
-  opacity: 0.9;
-}
-
-.dashboard {
-  display: grid;
-  gap: 30px;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-.stat-card {
-  background: white;
+.page-container {
   padding: 24px;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  text-align: center;
-  border: 1px solid #e1e5e9;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
-.stat-card h3 {
-  color: #64748b;
-  font-size: 0.9rem;
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.page-header h1 {
+  font-size: 2rem;
   font-weight: 600;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-number {
-  font-size: 2.5rem;
-  font-weight: bold;
   color: #1e293b;
+  margin: 0;
 }
 
-.stat-number.warning {
-  color: #f59e0b;
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
-.quick-actions {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.quick-actions h2 {
-  margin-bottom: 20px;
-  color: #1e293b;
-}
-
-.action-buttons {
+.dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 15px;
+  grid-template-columns: 1fr;
+  gap: 32px;
 }
 
-.action-btn {
-  display: block;
-  padding: 16px 20px;
-  background: #f8fafc;
-  border: 2px solid #e2e8f0;
-  border-radius: 8px;
+.dashboard-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 24px 0 24px;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.view-all-link {
+  color: #3b82f6;
   text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.view-all-link:hover {
+  color: #2563eb;
+}
+
+.table-container {
+  padding: 0 24px 24px 24px;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  background: #f8fafc;
   color: #475569;
   font-weight: 600;
-  text-align: center;
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.875rem;
+}
+
+.data-table td {
+  padding: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #374151;
+}
+
+.data-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.product-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.product-name {
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.product-category {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.stock-quantity {
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.threshold-value {
+  color: #374151;
+}
+
+.order-number {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.order-date {
+  color: #64748b;
+}
+
+.item-count {
+  color: #374151;
+}
+
+.order-total {
+  font-weight: 600;
+  color: #059669;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.status-low {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-active {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-offline {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
   transition: all 0.2s ease;
 }
 
-.action-btn:hover {
-  border-color: #667eea;
-  background: #f1f5f9;
-  transform: translateY(-1px);
-}
-
-.action-btn.primary {
-  background: #667eea;
-  border-color: #667eea;
+.btn-primary {
+  background: #3b82f6;
   color: white;
 }
 
-.action-btn.primary:hover {
-  background: #5a67d8;
-  border-color: #5a67d8;
+.btn-primary:hover {
+  background: #2563eb;
 }
 
-.recent-activity {
-  background: white;
-  padding: 30px;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+.btn-success {
+  background: #10b981;
+  color: white;
 }
 
-.recent-activity h2 {
-  margin-bottom: 20px;
-  color: #1e293b;
+.btn-success:hover {
+  background: #059669;
 }
 
-.activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.activity-item {
-  display: flex;
-  align-items: center;
-  padding: 15px;
-  background: #f8fafc;
-  border-radius: 8px;
-  border-left: 4px solid #667eea;
-}
-
-.activity-icon {
-  font-size: 1.5rem;
-  margin-right: 15px;
-}
-
-.activity-content h4 {
-  margin: 0 0 5px 0;
-  color: #1e293b;
-}
-
-.activity-content p {
-  margin: 0;
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
   color: #64748b;
-  font-size: 0.9rem;
 }
 
+.empty-state p {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+/* Responsive Design */
 @media (max-width: 768px) {
-  .hero h1 {
-    font-size: 2rem;
+  .page-container {
+    padding: 16px;
   }
   
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
   }
   
-  .action-buttons {
-    grid-template-columns: 1fr;
+  .card-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  
+  .table-container {
+    padding: 0 16px 16px 16px;
+  }
+  
+  .data-table {
+    font-size: 0.875rem;
+  }
+  
+  .data-table th,
+  .data-table td {
+    padding: 8px 12px;
   }
 }
 </style>
+  letter-spacing: 0.5px;
+}
+
+.stat-trend {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #4caf50;
+}
+
+.stat-trend.negative {
+  color: #f44336;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #1e293b;
+  margin: 0;
+}
+
+.stat-subtitle {
+  font-size: 0.9rem;
