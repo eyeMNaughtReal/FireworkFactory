@@ -69,7 +69,8 @@ npm run lint --fix
 ```
 src/
 ├── components/         # Reusable Vue components
-│   └── Pagination.vue  # Reusable pagination component
+│   ├── PagePagination.vue  # Reusable pagination component
+│   └── Toast.vue          # Toast notification system
 ├── views/              # Page-level components
 │   ├── HomeView.vue            # Dashboard and overview
 │   ├── ProductsView.vue        # Product management
