@@ -1,224 +1,216 @@
 <template>
-  <div class="orders">
+  <div class="page-container">
     <div class="page-header">
-      <h1>🛒 Orders Management</h1>
-      <button @click="showAddForm = true" class="btn-primary" :disabled="loading.orders">
-        ➕ New Order
-      </button>
-    </div>
-
-    <!-- Loading State -->
-    <div v-if="loading.orders" class="loading-container">
-      <div class="loading-spinner"></div>
-      <p>Loading orders...</p>
-    </div>
-
-    <!-- Error State -->
-    <div v-if="errors.fetchOrders" class="error-message">
-      <p>❌ Error loading orders: {{ errors.fetchOrders }}</p>
-      <button @click="store.fetchOrders()" class="btn-retry">🔄 Retry</button>
-    </div>
-
-    <!-- Main Content -->
-    <div v-else-if="!loading.orders" class="orders-content">
-      <div class="orders-stats">
-        <div class="stat-card">
-          <h3>Total Orders</h3>
-          <div class="stat-number">{{ orders.length }}</div>
-        </div>
-        
-        <div class="stat-card">
-          <h3>Pending Orders</h3>
-          <div class="stat-number">{{ pendingOrders.length }}</div>
-        </div>
-        
-        <div class="stat-card">
-          <h3>Received Orders</h3>
-          <div class="stat-number">{{ receivedOrders.length }}</div>
-        </div>
+      <h1>Orders Management</h1>
+      <div class="header-actions">
+        <button class="btn-primary" @click="showOrderForm = true">Add Order</button>
       </div>
+    </div>
 
-      <div class="orders-table" v-if="orders.length > 0">
-        <table>
-          <thead>
-            <tr>
-              <th>Order #</th>
-              <th>Vendor</th>
-              <th>Items</th>
-              <th>Total Cost</th>
-              <th>Status</th>
-              <th>Order Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="order in orders" :key="order.id">
-              <td class="order-id">{{ order.orderNumber || order.id.slice(-6) }}</td>
-              <td>{{ getVendorName(order.vendorId) }}</td>
-              <td>{{ order.items?.length || 0 }} items</td>
-              <td>${{ calculateOrderTotal(order).toFixed(2) }}</td>
-              <td>
-                <span class="status-badge" :class="order.status">
-                  {{ formatStatus(order.status) }}
-                </span>
-              </td>
-              <td>{{ formatDate(order.createdAt) }}</td>
-              <td>
-                <div class="action-buttons">
-                  <button @click="viewOrder(order)" class="btn-view" title="View Details">👁️</button>
-                  <button @click="editOrder(order)" class="btn-edit" title="Edit Order">✏️</button>
-                  <button 
-                    v-if="order.status === 'pending'" 
-                    @click="markAsReceived(order)" 
-                    class="btn-receive" 
-                    title="Mark as Received"
-                  >
-                    📦
+    <div class="filters-container">
+      <input 
+        type="text" 
+        class="search-input"
+        v-model="searchQuery"
+        placeholder="Search orders..."
+      />
+      <select v-model="vendorFilter" class="filter-select">
+        <option value="">All Vendors</option>
+        <option v-for="vendor in vendors" :key="vendor.id" :value="vendor.id">
+          {{ vendor.name }}
+        </option>
+      </select>
+      <select v-model="statusFilter" class="filter-select">
+        <option value="">All Statuses</option>
+        <option value="ordered">Ordered</option>
+        <option value="received">Received</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+    </div>
+
+    <!-- Orders Table -->
+    <div class="table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Order #</th>
+            <th>Order Date</th>
+            <th>Items</th>
+            <th>Total</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="order in paginatedOrders" :key="order.id">
+            <td>{{ order.orderNumber || order.id.slice(-6) }}</td>
+            <td>{{ formatDate(order.orderDate || order.createdAt) }}</td>
+            <td>{{ order.items?.length || 0 }}</td>
+            <td>${{ (order.total || calculateOrderTotal(order)).toFixed(2) }}</td>
+            <td>
+              <span 
+                class="badge" 
+                :class="{
+                  'badge-warning': order.status === 'pending',
+                  'badge-success': order.status === 'received',
+                  'badge-danger': order.status === 'cancelled'
+                }"
+              >
+                {{ formatStatus(order.status) }}
+              </span>
+            </td>
+            <td>
+              <div class="dropdown" :class="{ 'dropdown-open': openDropdown === order.id }">
+                <button class="dropdown-toggle" @click="toggleDropdown(order.id)">
+                  Actions ▾
+                </button>
+                <div class="dropdown-menu">
+                  <button @click="editOrder(order); closeDropdown()" class="dropdown-item">
+                    Edit
                   </button>
-                  <button v-if="order.status !== 'cancelled'" @click="cancelOrder(order)" class="btn-edit" title="Cancel Order">🚫</button>
-                  <button @click="deleteOrder(order)" class="btn-delete" title="Delete Order">🗑️</button>
+                  <button @click="deleteOrder(order.id); closeDropdown()" class="dropdown-item delete-action">
+                    Delete
+                  </button>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <!-- Empty state message -->
+      <div v-if="filteredOrders.length === 0" class="empty-state">
+        <h3>No Orders Found</h3>
+        <p>Adjust your filters or add a new order.</p>
       </div>
-
-      <div v-else class="empty-state">
-        <div class="empty-icon">📦</div>
-        <h3>No Orders Yet</h3>
-        <p>Create your first order to get started.</p>
-        <button @click="showAddForm = true" class="btn-primary">➕ Create Order</button>
-      </div>
+      
+      <!-- Pagination -->
+      <PagePagination
+        v-if="filteredOrders.length > 0"
+        :current-page="currentPage"
+        :total-items="filteredOrders.length"
+        :per-page="itemsPerPage"
+        @update:page="currentPage = $event"
+      />
     </div>
 
-    <!-- Add Order Modal -->
-    <div v-if="showAddForm" class="modal-overlay" @click="showAddForm = false">
-      <div class="modal" @click.stop>
+    <!-- Order Form Modal -->
+    <div v-if="showOrderForm" class="modal-overlay" @click="closeModal">
+      <div class="modal modal-wide" @click.stop>
         <div class="modal-header">
-          <h2>{{ editingOrder ? 'Edit Order' : 'Create New Order' }}</h2>
+          <h2>{{ editingOrder ? 'Edit Order' : 'New Order' }}</h2>
           <button @click="closeModal" class="close-btn">&times;</button>
         </div>
-        <form @submit.prevent="saveOrder" class="order-form">
-          <div class="form-group">
-            <label>Order Items*</label>
-            <div class="order-items enhanced-ui">
-              <div class="order-items-header">
-                <span>Product</span>
-                <span>Quantity (Cases)</span>
-                <span>Unit Cost (per Case)</span>
-                <span>Total</span>
-                <span>Actions</span>
-              </div>
-              <div v-for="(item, index) in formData.items" :key="index" class="order-item enhanced-row">
-                <div class="product-select-group">
-                  <div class="select-with-icon">
-                    <select v-model="item.productId" @change="updateItemProduct(item)" required>
-                      <option value="">Select Product</option>
-                      <option v-for="product in availableProducts" :key="product.id" :value="product.id">
-                        {{ product.name }} ({{ product.sku }})
-                      </option>
-                    </select>
-                    <button type="button" @click="openProductModal(index)" class="btn-add-product" title="Add New Product">
-                      <span class="icon-plus">➕</span>
-                    </button>
-                  </div>
-                </div>
-                <div class="input-adorned">
-                  <input 
-                    v-model.number="item.quantity" 
-                    type="number" 
-                    min="1" 
-                    placeholder="Qty (Cases)" 
-                    required
-                    class="qty-input"
-                  />
-                </div>
-                <div class="input-adorned">
-                  <span class="input-prefix">$</span>
-                  <input 
-                    v-model.number="item.unitCost" 
-                    type="number" 
-                    step="0.01" 
-                    min="0" 
-                    placeholder="Unit Cost (per Case)" 
-                    required
-                    class="cost-input"
-                  />
-                </div>
-                <span class="item-total">${{ getItemTotal(item).toFixed(2) }}</span>
-                <button type="button" @click="removeItem(index)" class="btn-remove" title="Remove Item">🗑️</button>
-              </div>
-              <button type="button" @click="addItem" class="btn-add-item enhanced-add-item">➕ Add Item</button>
+
+        <form @submit.prevent="saveOrder" class="form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Order Date</label>
+              <input 
+                type="date" 
+                v-model="formData.orderDate"
+                class="form-input"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select v-model="formData.status" class="form-input">
+                <option value="ordered">Ordered</option>
+                <option value="received">Received</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
             </div>
           </div>
 
-          <div class="form-total">
-            <strong>Total: ${{ orderTotal !== undefined ? orderTotal.toFixed(2) : calculateOrderTotal(formData).toFixed(2) }}</strong>
+          <div class="form-section">
+            <div class="section-header">
+              <h3>Order Items</h3>
+              <button type="button" @click="addOrderItem" class="btn-primary btn-compact">
+                Add Item
+              </button>
+            </div>
+
+            <table class="data-table order-items-table">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Unit</th>
+                  <th>Quantity</th>
+                  <th>Unit Cost</th>
+                  <th>Total</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(item, index) in formData.items" :key="index">
+                  <td>
+                    <select v-model="item.productId" required class="form-input">
+                      <option value="">Select Product</option>
+                      <option v-for="product in products" :key="product.id" :value="product.id">
+                        {{ product.name }} ({{ getVendorName(getProductVendorId(product.id)) }})
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <select v-model="item.unit" class="form-input" @change="updateUnitConversion(item)">
+                      <option value="case">Case</option>
+                      <option value="pack">Pack</option>
+                      <option value="item">Item</option>
+                    </select>
+                    <div class="unit-info" v-if="item.productId">
+                      {{ getUnitInfo(item) }}
+                    </div>
+                  </td>
+                  <td>
+                    <input type="number" v-model.number="item.quantity" min="1" required class="form-input">
+                    <div class="unit-total" v-if="item.productId">
+                      Total Items: {{ calculateTotalItems(item) }}
+                    </div>
+                  </td>
+                  <td>
+                    <input type="number" v-model.number="item.unitCost" min="0" step="0.01" required class="form-input">
+                  </td>
+                  <td class="text-right">
+                    ${{ (item.quantity * item.unitCost || 0).toFixed(2) }}
+                  </td>
+                  <td>
+                    <button 
+                      type="button" 
+                      @click="removeOrderItem(index)" 
+                      class="btn-delete" 
+                      title="Remove Item"
+                      aria-label="Remove Item"
+                    >×</button>
+                  </td>
+                </tr>
+                <tr v-if="formData.items.length === 0">
+                  <td colspan="6" class="empty-message">
+                    Click "Add Item" to add products to this order
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot v-if="formData.items.length > 0">
+                <tr>
+                  <td colspan="4" class="text-right"><strong>Order Total:</strong></td>
+                  <td class="text-right"><strong>${{ orderTotal.toFixed(2) }}</strong></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
-          <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-
           <div class="form-actions">
-            <button type="button" @click="closeModal" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary" :disabled="submitting">
-              {{ submitting ? 'Saving...' : (editingOrder ? 'Update' : 'Create') }} Order
+            <button type="button" @click="closeModal" class="btn-secondary">
+              Cancel
             </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Add Product Modal -->
-    <div v-if="showProductModal" class="modal-overlay" @click="closeProductModal">
-      <div class="modal" @click.stop>
-        <div class="modal-header">
-          <h2>Add New Product</h2>
-          <button @click="closeProductModal" class="close-btn">&times;</button>
-        </div>
-        <form @submit.prevent="saveProduct" class="product-form">
-          <div class="form-group">
-            <label>Product Name*</label>
-            <input v-model="productForm.name" type="text" required />
-          </div>
-          <div class="form-group">
-            <label>Category*</label>
-            <select v-model="productForm.categoryId" required>
-              <option value="">Select Category</option>
-              <option v-for="category in store.categories" :key="category.id" :value="category.id">
-                {{ category.name }}
-              </option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Low Inventory Threshold</label>
-            <input v-model.number="productForm.lowInventoryThreshold" type="number" min="0" />
-          </div>
-          <div class="form-group">
-            <label>Unit Type</label>
-            <select v-model="productForm.units.type">
-              <option value="item">Item</option>
-              <option value="box">Box</option>
-              <option value="case">Case</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Items per Pack (optional)</label>
-            <input v-model.number="productForm.itemsPerPack" type="number" min="1" placeholder="e.g. 6" />
-          </div>
-          <div class="form-group">
-            <label>Packs per Case (optional)</label>
-            <input v-model.number="productForm.packsPerCase" type="number" min="1" placeholder="e.g. 4" />
-          </div>
-          <div class="form-group">
-            <label>Items per Case <span v-if="productForm.itemsPerPack && productForm.packsPerCase">(auto-calculated)</span></label>
-            <input v-model.number="productForm.itemsPerCase" type="number" min="1" :readonly="productForm.itemsPerPack && productForm.packsPerCase" :value="autoItemsPerCase" placeholder="e.g. 24" />
-          </div>
-          <div v-if="productErrorMsg" class="error">{{ productErrorMsg }}</div>
-          <div v-if="productSuccessMsg" class="success">{{ productSuccessMsg }}</div>
-          <div class="form-actions">
-            <button type="button" @click="closeProductModal" class="btn-secondary">Cancel</button>
-            <button type="submit" class="btn-primary">Add Product</button>
+            <button 
+              type="submit" 
+              class="btn-primary"
+              :disabled="!formData.items.length || submitting"
+            >
+              {{ submitting ? 'Saving...' : (editingOrder ? 'Update Order' : 'Create Order') }}
+            </button>
           </div>
         </form>
       </div>
@@ -227,639 +219,476 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
+import { useRoute } from 'vue-router'
+import PagePagination from '@/components/PagePagination.vue'
+import { useToast } from '@/components/Toast.vue'
 
 export default {
   name: 'OrdersView',
+  components: {
+    PagePagination
+  },
   setup() {
     const store = useInventoryStore()
-    const showAddForm = ref(false)
-    const editingOrder = ref(null)
+    const route = useRoute()
+    const toast = useToast()
+    const showOrderForm = ref(false)
     const submitting = ref(false)
-    const showProductModal = ref(false)
-    const productForm = ref({
-      name: '',
-      categoryId: '',
-      vendorId: '',
-      lowInventoryThreshold: 10,
-      itemsPerPack: undefined,
-      packsPerCase: undefined,
-      itemsPerCase: undefined,
-      units: { type: 'item', conversionRate: 1 }
-    })
-    // Track which item row triggered the modal
-    const productModalRowIndex = ref(null)
-    const formData = ref({
-      vendorId: '',
-      items: [{ productId: '', quantity: 1, unitCost: 0, unitType: 'item' }],
-      notes: '',
-      status: 'pending'
-    })
     const errorMsg = ref('')
-    const successMsg = ref('')
-    // Add separate refs for product modal
-    const productErrorMsg = ref('')
-    const productSuccessMsg = ref('')
+    const editingOrder = ref(null)
+    const searchQuery = ref('')
+    const vendorFilter = ref('')
+    const statusFilter = ref('')
+    const openDropdown = ref(null)
+    
+    // Pagination variables
+    const currentPage = ref(1)
+    const itemsPerPage = ref(10)
 
-    // Computed properties
-    const orders = computed(() => store.orders)
-    const vendors = computed(() => store.vendors)
-    const products = computed(() => store.products)
-    const loading = computed(() => store.loading)
-    const errors = computed(() => store.errors)
-    
-    const pendingOrders = computed(() => 
-      orders.value.filter(order => order.status === 'pending')
-    )
-    
-    const receivedOrders = computed(() => 
-      orders.value.filter(order => order.status === 'received')
-    )
-    
-    const availableProducts = computed(() =>
-      formData.value.vendorId
-        ? products.value.filter(p => p.vendorId === formData.value.vendorId)
-        : products.value
-    )
-    
-    const orderTotal = computed(() => 
-      formData.value.items.reduce((sum, item) => 
-        sum + (item.quantity * item.unitCost || 0), 0
-      )
-    )
+    // Get current date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0]
 
-    // Computed: auto-calculate itemsPerCase if both itemsPerPack and packsPerCase are set
-    const autoItemsPerCase = computed(() => {
-      if (productForm.value.itemsPerPack && productForm.value.packsPerCase) {
-        return productForm.value.itemsPerPack * productForm.value.packsPerCase
-      }
-      return productForm.value.itemsPerCase || ''
+    const formData = reactive({
+      items: [],
+      status: 'ordered',
+      orderDate: today
     })
 
-    // Methods
-    const formatDate = (dateValue) => {
-      if (!dateValue) return 'N/A'
-      // Firestore Timestamp object
-      if (typeof dateValue === 'object' && typeof dateValue.toDate === 'function') {
-        const d = dateValue.toDate()
-        return isNaN(d) ? 'N/A' : d.toLocaleDateString()
-      }
-      // ISO string or number
-      const d = new Date(dateValue)
-      return isNaN(d) ? 'N/A' : d.toLocaleDateString()
-    }
+    onMounted(async () => {
+      try {
+        await Promise.all([
+          store.vendors.length === 0 ? store.fetchVendors() : Promise.resolve(),
+          store.products.length === 0 ? store.fetchProducts() : Promise.resolve(),
+          store.orders.length === 0 ? store.fetchOrders() : Promise.resolve(),
+          store.inventory.length === 0 ? store.fetchInventory() : Promise.resolve()
+        ])
 
-    const formatStatus = (status) => {
-      const statusMap = {
-        'pending': 'Pending',
-        'received': 'Received',
-        'cancelled': 'Cancelled'
+        // Set vendor filter from URL if present
+        if (route.query.vendorId) {
+          vendorFilter.value = route.query.vendorId
+        }
+        
+        // Handle quick order creation from dashboard
+        if (route.query.action === 'add') {
+          showOrderForm.value = true
+          
+          // If productId is specified, pre-populate the order with that product
+          if (route.query.productId) {
+            formData.items = [{
+              productId: route.query.productId,
+              unit: 'case',
+              quantity: 1,
+              actualQuantity: 0,
+              unitCost: 0
+            }]
+          }
+        }
+        
+        // Add click outside handler for dropdowns
+        document.addEventListener('click', handleClickOutside)
+      } catch (error) {
+        console.error('Failed to fetch data:', error)
       }
-      return statusMap[status] || status
-    }
+    })
+
+    onUnmounted(() => {
+      document.removeEventListener('click', handleClickOutside)
+    })
+
+    const products = computed(() => store.products)
+    const vendors = computed(() => store.vendors)
 
     const getVendorName = (vendorId) => {
       const vendor = vendors.value.find(v => v.id === vendorId)
-      return vendor ? vendor.name : 'Unknown Vendor'
+      return vendor ? vendor.name : ''
     }
 
-    // Helper: Get product units for unit selector
-    const getProductUnits = (productId) => {
+    const getProductVendorId = (productId) => {
       const product = products.value.find(p => p.id === productId)
-      if (!product || !product.units) return [{ type: 'item', conversionRate: 1 }]
-      // Support array or object for backward compatibility
-      if (Array.isArray(product.units)) return product.units
-      return [product.units]
+      return product ? product.vendorId : ''
     }
 
-    // Helper: Get conversion rate for a given product/unitType
-    const getConversionRate = (productId, unitType) => {
-      const units = getProductUnits(productId)
-      const found = units.find(u => u.type === unitType)
-      return found ? found.conversionRate || 1 : 1
-    }
+    const orders = computed(() => {
+      let result = store.orders
 
-    // Calculate item total (per order row, per case)
-    const getItemTotal = (item) => {
-      return (item.quantity || 0) * (item.unitCost || 0)
-    }
+      if (route.query.vendorId) {
+        const vendorId = route.query.vendorId
+        result = result.filter(order => 
+          order.items?.some(item => {
+            const product = products.value.find(p => p.id === item.productId)
+            return product && product.vendorId === vendorId
+          })
+        )
+      }
 
-    // Calculate order total (sum of all case totals)
+      return result
+    })
+
+    const filteredOrders = computed(() => {
+      let result = orders.value
+
+      if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase()
+        result = result.filter(order => 
+          order.orderNumber?.toLowerCase().includes(query)
+        )
+      }
+
+      if (vendorFilter.value) {
+        const vendorId = vendorFilter.value
+        result = result.filter(order => 
+          order.items?.some(item => {
+            const product = products.value.find(p => p.id === item.productId)
+            return product && product.vendorId === vendorId
+          })
+        )
+      }
+
+      if (statusFilter.value) {
+        result = result.filter(order => order.status === statusFilter.value)
+      }
+
+      return result
+    })
+    
+    // Add paginated orders computed property
+    const paginatedOrders = computed(() => {
+      const startIndex = (currentPage.value - 1) * itemsPerPage.value
+      const endIndex = startIndex + itemsPerPage.value
+      return filteredOrders.value.slice(startIndex, endIndex)
+    })
+
     const calculateOrderTotal = (order) => {
-      if (!order.items || !Array.isArray(order.items)) return 0
-      return order.items.reduce((sum, item) => {
-        return sum + ((item.quantity || 0) * (item.unitCost || 0))
-      }, 0)
+      return order.items?.reduce((sum, item) => sum + (item.quantity * item.unitCost || 0), 0) || 0
     }
 
-    // Convert cases to items for inventory/logic
-    const getItemsFromCases = (productId, cases) => {
-      const product = products.value.find(p => p.id === productId)
-      if (!product) return 0
-      // Prefer itemsPerCase, fallback to 1
-      return (cases || 0) * (product.itemsPerCase || 1)
-    }
+    const orderTotal = computed(() => {
+      return formData.items.reduce((sum, item) => sum + (item.quantity * item.unitCost || 0), 0)
+    })
 
-    const viewOrder = (order) => {
-      console.log('Viewing order:', order)
-      // TODO: Implement order details modal
-    }
-
-    const editOrder = (order) => {
-      editingOrder.value = order
-      formData.value = {
-        vendorId: order.vendorId || '',
-        items: order.items?.map(item => ({
-          ...item,
-          unitType: item.unitType || 'item'
-        })) || [{ productId: '', quantity: 1, unitCost: 0, unitType: 'item' }],
-        notes: order.notes || '',
-        status: order.status || 'pending'
-      }
-      showAddForm.value = true
-    }
-
-    const markAsReceived = async (order) => {
-      try {
-        await store.updateOrder(order.id, { status: 'received' })
-      } catch (error) {
-        console.error('Error marking order as received:', error)
-      }
-    }
-
-    const addItem = () => {
-      formData.value.items.push({ productId: '', quantity: 1, unitCost: 0, unitType: 'item' })
-    }
-
-    const removeItem = (index) => {
-      if (formData.value.items.length > 1) {
-        formData.value.items.splice(index, 1)
-      }
-    }
-
-    const updateItemProduct = (item) => {
+    const getUnitInfo = (item) => {
       const product = products.value.find(p => p.id === item.productId)
-      if (product && product.wholesalePrice) {
-        item.unitCost = product.wholesalePrice
-      }
-      // Set default unitType if not set
-      if (product && product.units) {
-        if (Array.isArray(product.units)) {
-          item.unitType = product.units[0]?.type || 'item'
-        } else {
-          item.unitType = product.units.type || 'item'
-        }
-      } else {
-        item.unitType = 'item'
+      if (!product || !product.unitConfig) return ''
+
+      switch (item.unit) {
+        case 'case':
+          if (product.unitConfig.structure === 'item-package-case') {
+            return `1 case = ${product.unitConfig.case.conversionRate} packages (${product.unitConfig.totalItemsPerCase} items)`
+          } else {
+            return `1 case = ${product.unitConfig.case.conversionRate} items`
+          }
+        case 'pack':
+          if (product.unitConfig.structure === 'item-package-case') {
+            return `1 package = ${product.unitConfig.package.conversionRate} items`
+          }
+          return 'Package not available for this product'
+        case 'item':
+          return 'Individual items'
+        default:
+          return ''
       }
     }
 
-    const openProductModal = (rowIndex = null) => {
-      productForm.value = {
-        name: '',
-        categoryId: '',
-        vendorId: formData.value.vendorId,
-        lowInventoryThreshold: 10,
-        itemsPerPack: undefined,
-        packsPerCase: undefined,
-        itemsPerCase: undefined,
-        units: { type: 'item', conversionRate: 1 }
+    const calculateTotalItems = (item) => {
+      if (!item.quantity) return 0
+      const product = products.value.find(p => p.id === item.productId)
+      if (!product || !product.unitConfig) return 0
+      
+      switch (item.unit) {
+        case 'case':
+          if (product.unitConfig.structure === 'item-package-case') {
+            return item.quantity * product.unitConfig.totalItemsPerCase
+          } else {
+            return item.quantity * product.unitConfig.case.conversionRate
+          }
+        case 'pack':
+          if (product.unitConfig.structure === 'item-package-case') {
+            return item.quantity * product.unitConfig.package.conversionRate
+          }
+          return 0
+        case 'item':
+          return item.quantity
+        default:
+          return 0
       }
-      productModalRowIndex.value = rowIndex
-      showProductModal.value = true
+    }
+
+    const updateUnitConversion = (item) => {
+      // When unit changes, convert the quantity to maintain the same total number of items
+      const product = products.value.find(p => p.id === item.productId)
+      if (!product || !product.unitConfig || !item.quantity) return
+
+      const currentTotalItems = calculateTotalItems(item)
+      
+      // Update the quantity to maintain the same total number of items
+      switch (item.unit) {
+        case 'case':
+          if (product.unitConfig.structure === 'item-package-case') {
+            item.quantity = Math.ceil(currentTotalItems / product.unitConfig.totalItemsPerCase)
+          } else {
+            item.quantity = Math.ceil(currentTotalItems / product.unitConfig.case.conversionRate)
+          }
+          break
+        case 'pack':
+          if (product.unitConfig.structure === 'item-package-case') {
+            item.quantity = Math.ceil(currentTotalItems / product.unitConfig.package.conversionRate)
+          }
+          break
+        case 'item':
+          item.quantity = currentTotalItems
+          break
+      }
+      
+      // Update the actual quantity of individual items
+      item.actualQuantity = calculateTotalItems(item)
+    }
+
+    const addOrderItem = () => {
+      formData.items.push({
+        productId: '',
+        unit: 'case',
+        quantity: 1,
+        actualQuantity: 0, // This will store the actual number of individual items
+        unitCost: 0
+      })
+    }
+
+    const removeOrderItem = (index) => {
+      formData.items.splice(index, 1)
+    }
+
+    const resetForm = () => {
+      formData.items = []
+      formData.status = 'ordered'
+      formData.orderDate = today
       errorMsg.value = ''
-      successMsg.value = ''
-    }
-
-    const saveProduct = async () => {
-      if (!productForm.value.name || !productForm.value.categoryId) {
-        productErrorMsg.value = 'Please fill in all required product fields.'
-        return
-      }
-      // Always set itemsPerCase for backend
-      if (productForm.value.itemsPerPack && productForm.value.packsPerCase) {
-        productForm.value.itemsPerCase = productForm.value.itemsPerPack * productForm.value.packsPerCase
-      }
-      try {
-        const newProduct = await store.addProduct({ ...productForm.value })
-        // Refresh products if needed (Pinia store should be reactive, but force fetch if not)
-        if (typeof store.fetchProducts === 'function') {
-          await store.fetchProducts()
-        }
-        // Set the new product in the correct row
-        const idx = productModalRowIndex.value ?? (formData.value.items.length - 1)
-        if (formData.value.items[idx]) {
-          formData.value.items[idx].productId = newProduct.id
-        }
-        showProductModal.value = false
-        productErrorMsg.value = ''
-        productSuccessMsg.value = 'Product added!'
-        productModalRowIndex.value = null
-      } catch (e) {
-        productErrorMsg.value = 'Failed to create product.'
-      }
-    }
-
-    const closeProductModal = () => {
-      showProductModal.value = false
-      productErrorMsg.value = ''
-      productSuccessMsg.value = ''
-      productModalRowIndex.value = null
     }
 
     const closeModal = () => {
-      showAddForm.value = false
+      showOrderForm.value = false
       editingOrder.value = null
-      formData.value = {
-        vendorId: '',
-        items: [{ productId: '', quantity: 1, unitCost: 0, unitType: 'item' }],
-        notes: '',
-        status: 'pending'
-      }
+      resetForm()
     }
 
     const saveOrder = async () => {
-      if (submitting.value) return
-      // Validation
-      if (!formData.value.items.length || formData.value.items.some(i => !i.productId || i.quantity <= 0)) {
-        errorMsg.value = 'All items must have a product and quantity.'
-        return
-      }
-      if (formData.value.items.some(i => i.unitCost <= 0)) {
-        errorMsg.value = 'All items must have a unit cost greater than 0.'
-        return
-      }
+      if (submitting.value || !formData.items.length) return
+
       submitting.value = true
       errorMsg.value = ''
+
       try {
-        // Convert cases to items for each order item
-        const itemsForOrder = formData.value.items.map(item => ({
-          ...item,
-          quantityCases: item.quantity, // store original
-          quantityItems: getItemsFromCases(item.productId, item.quantity)
-        }))
         const orderData = {
-          vendorId: formData.value.vendorId, // can be blank
-          items: itemsForOrder,
-          notes: formData.value.notes,
-          status: formData.value.status || 'pending',
-          orderNumber: editingOrder.value?.orderNumber || `ORD-${Date.now()}`,
-          createdAt: editingOrder.value?.createdAt || new Date().toISOString()
+          items: formData.items,
+          status: formData.status,
+          total: orderTotal.value,
+          orderDate: formData.orderDate,
+          createdAt: new Date().toISOString()
         }
+
+        console.log('Saving order with data:', orderData);
+
         if (editingOrder.value) {
+          console.log('Updating existing order:', editingOrder.value.id);
           await store.updateOrder(editingOrder.value.id, orderData)
+          toast.success('Order updated successfully')
         } else {
+          console.log('Creating new order');
           await store.addOrder(orderData)
+          toast.success('Order created successfully')
         }
+
+        // Refresh inventory after order changes
+        await store.fetchInventory()
+
         closeModal()
       } catch (error) {
-        errorMsg.value = 'Failed to save order.'
+        console.error('Failed to save order:', error)
+        errorMsg.value = 'Failed to save order. Please try again.'
+        toast.error('Failed to save order. Please try again.')
       } finally {
         submitting.value = false
       }
     }
 
-    const deleteOrder = async (order) => {
-      if (confirm('Are you sure you want to delete this order?')) {
-        try {
-          await store.deleteOrder(order.id)
-        } catch (error) {
-          alert('Failed to delete order.')
-        }
+    const editOrder = (order) => {
+      editingOrder.value = order
+      formData.items = [...order.items]
+      formData.status = order.status
+      formData.orderDate = order.orderDate || new Date(order.createdAt).toISOString().split('T')[0]
+      showOrderForm.value = true
+    }
+
+    const deleteOrder = async (orderId) => {
+      if (!confirm('Are you sure you want to delete this order?')) return
+
+      try {
+        await store.deleteOrder(orderId)
+        toast.success('Order deleted successfully')
+      } catch (error) {
+        console.error('Failed to delete order:', error)
+        toast.error('Failed to delete order. Please try again.')
       }
     }
-    const cancelOrder = async (order) => {
-      if (order.status === 'cancelled') return
-      if (confirm('Cancel this order?')) {
-        try {
-          await store.updateOrder(order.id, { status: 'cancelled' })
-        } catch (error) {
-          alert('Failed to cancel order.')
+
+    const formatDate = (date) => {
+      return new Date(date).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+    }
+
+    const formatStatus = (status) => {
+      return status.charAt(0).toUpperCase() + status.slice(1)
+    }
+
+    const toggleDropdown = (itemId) => {
+      if (openDropdown.value === itemId) {
+        closeDropdown()
+      } else {
+        openDropdown.value = itemId
+        // Toggle table container overflow for dropdown visibility
+        const tableContainer = document.querySelector('.table-container')
+        if (tableContainer) {
+          tableContainer.classList.add('dropdown-active')
         }
       }
     }
 
-    // Initialize data
-    onMounted(async () => {
-      try {
-        await Promise.all([
-          store.fetchOrders(),
-          store.fetchVendors(),
-          store.fetchProducts()
-        ])
-      } catch (error) {
-        console.error('Error loading initial data:', error)
+    const closeDropdown = () => {
+      openDropdown.value = null
+      // Remove table container overflow class
+      const tableContainer = document.querySelector('.table-container')
+      if (tableContainer) {
+        tableContainer.classList.remove('dropdown-active')
       }
+    }
+
+    // Close dropdown when clicking outside
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.dropdown') && openDropdown.value) {
+        closeDropdown()
+      }
+    }
+
+    // Reset page when filters change
+    watch([searchQuery, vendorFilter, statusFilter], () => {
+      currentPage.value = 1
     })
 
     return {
-      // State
-      showAddForm,
-      editingOrder,
+      toast,
+      showOrderForm,
       submitting,
-      formData,
-      store,
-      showProductModal,
-      productForm,
       errorMsg,
-      successMsg,
-      productErrorMsg,
-      productSuccessMsg,
-      productModalRowIndex,
-      
-      // Computed
-      orders,
-      vendors,
+      editingOrder,
+      openDropdown,
+      formData,
+      searchQuery,
+      vendorFilter,
+      statusFilter,
       products,
-      loading,
-      errors,
-      pendingOrders,
-      receivedOrders,
-      availableProducts,
+      vendors,
+      filteredOrders,
+      paginatedOrders,
+      currentPage,
+      itemsPerPage,
       orderTotal,
-      
-      // Methods
-      formatDate,
-      formatStatus,
       getVendorName,
+      getProductVendorId,
       calculateOrderTotal,
-      viewOrder,
-      editOrder,
-      markAsReceived,
-      addItem,
-      removeItem,
-      updateItemProduct,
-      openProductModal,
-      saveProduct,
-      closeProductModal,
+      getUnitInfo,
+      calculateTotalItems,
+      updateUnitConversion,
+      addOrderItem,
+      removeOrderItem,
       closeModal,
+      editOrder,
       saveOrder,
       deleteOrder,
-      cancelOrder
+      formatDate,
+      formatStatus,
+      toggleDropdown,
+      closeDropdown
     }
   }
 }
 </script>
 
 <style scoped>
-.orders {
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
   margin-bottom: 32px;
 }
 
-.page-header h1 {
-  margin: 0;
-  color: #1f2937;
-  font-size: 2rem;
-  font-weight: bold;
-}
-
-.loading-container {
-  text-align: center;
-  padding: 48px;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f4f6;
-  border-top: 4px solid #3b82f6;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.error-message {
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 24px;
-  text-align: center;
-}
-
-.error-message p {
-  margin: 0 0 12px;
-  color: #dc2626;
-}
-
-.btn-retry {
-  background: #dc2626;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.btn-retry:hover {
-  background: #b91c1c;
-}
-
-.orders-content {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.orders-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
+.card {
   background: white;
-  padding: 24px;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  text-align: center;
+  overflow: hidden;
 }
 
-.stat-card h3 {
-  margin: 0 0 8px;
-  color: #6b7280;
+.card-content {
+  padding: 16px;
+}
+
+.card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.card-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.card-title .badge {
+  padding: 4px 8px;
+  border-radius: 12px;
   font-size: 0.875rem;
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
-.stat-number {
-  font-size: 2rem;
-  font-weight: bold;
-  color: #1f2937;
-}
-
-.orders-table {
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.orders-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.orders-table th,
-.orders-table td {
-  padding: 16px;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.orders-table th {
-  background: #f9fafb;
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.orders-table tbody tr:hover {
-  background: #f9fafb;
-}
-
-.order-id {
-  font-family: monospace;
-  font-weight: 600;
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.status-badge.pending {
+.card-title .badge-warning {
   background: #fef3c7;
   color: #92400e;
 }
 
-.status-badge.received {
+.card-title .badge-success {
   background: #d1fae5;
   color: #059669;
 }
 
-.status-badge.cancelled {
+.card-title .badge-danger {
   background: #fee2e2;
   color: #dc2626;
 }
 
-.action-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.btn-view,
-.btn-edit,
-.btn-receive {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
-  font-size: 1rem;
-}
-
-.btn-view:hover,
-.btn-edit:hover,
-.btn-receive:hover {
-  background: #f3f4f6;
-}
-
-.btn-receive {
-  background: #10b981;
-  color: white;
-}
-
-.btn-receive:hover {
-  background: #059669;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 48px 24px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.empty-icon {
-  font-size: 4rem;
+.card-text {
   margin-bottom: 16px;
+  color: #374151;
 }
 
-.empty-state h3 {
-  margin: 0 0 8px;
-  color: #1f2937;
-  font-size: 1.5rem;
+.card-text p {
+  margin: 4px 0;
 }
 
-.empty-state p {
-  margin: 0 0 24px;
-  color: #6b7280;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+.card-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: white;
-  border-radius: 8px;
-  max-width: 600px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.modal-header h2 {
-  margin: 0;
-  color: #1f2937;
-  font-size: 1.5rem;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
 }
 
 .close-btn {
@@ -875,12 +704,14 @@ export default {
   color: #374151;
 }
 
-.order-form {
+.form {
   padding: 24px;
 }
 
-.product-form {
-  padding: 24px;
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
 .form-group {
@@ -918,198 +749,94 @@ export default {
   min-height: 80px;
 }
 
-.order-items {
+.form-section {
   border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1rem 0;
+  overflow-x: auto;
 }
 
-.order-items.enhanced-ui {
-  background: #f7fafc;
-  border: 1.5px solid #e0e7ef;
-  border-radius: 10px;
-  padding: 20px 16px 12px 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(60, 60, 100, 0.04);
-}
-
-.order-items-header {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
-  gap: 12px;
-  font-weight: 700;
-  color: #374151;
-  margin-bottom: 10px;
-  font-size: 1rem;
-  letter-spacing: 0.01em;
-}
-
-.order-item.enhanced-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr 40px;
-  gap: 12px;
-  align-items: center;
-  background: #fff;
-  border-radius: 7px;
-  margin-bottom: 10px;
-  box-shadow: 0 1px 3px rgba(60, 60, 100, 0.04);
-  border: 1px solid #e5e7eb;
-  transition: box-shadow 0.2s, border 0.2s;
-}
-
-.order-item.enhanced-row:hover {
-  box-shadow: 0 4px 12px rgba(60, 60, 100, 0.10);
-  border: 1.5px solid #3b82f6;
-}
-
-.product-select-group .select-with-icon {
+.section-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
+  margin-bottom: 1rem;
 }
 
-.btn-add-product {
-  background: #e0e7ef;
-  border: none;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  color: #3b82f6;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.btn-add-product:hover {
-  background: #3b82f6;
-  color: #fff;
-}
-
-.input-adorned {
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.input-prefix {
-  position: absolute;
-  left: 10px;
-  color: #6b7280;
-  font-size: 1rem;
-  pointer-events: none;
-}
-
-.cost-input {
-  padding-left: 20px;
-}
-
-.qty-input, .cost-input {
-  width: 100%;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 1rem;
-  background: #f9fafb;
-  transition: border 0.2s;
-}
-
-.qty-input:focus, .cost-input:focus {
-  border: 1.5px solid #3b82f6;
-  outline: none;
-  background: #fff;
-}
-
-.item-total {
-  font-weight: 700;
-  color: #059669;
-  text-align: right;
-  font-size: 1.1rem;
-}
-
-.btn-remove {
-  background: #fee2e2;
-  color: #dc2626;
-  border: none;
-  padding: 8px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 1.1rem;
-  transition: background 0.2s, color 0.2s;
-}
-
-.btn-remove:hover {
-  background: #dc2626;
-  color: #fff;
-}
-
-.enhanced-add-item {
-  margin-top: 8px;
-  background: #3b82f6;
-  color: #fff;
-  border-radius: 6px;
+.section-header h3 {
   font-size: 1rem;
   font-weight: 600;
-  padding: 10px 20px;
+  color: #1a1f36;
+  margin: 0;
+}
+
+.table-container {
+  position: relative;
+  overflow: visible;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.data-table th {
+  background: #f9fafb;
+  color: #374151;
+  font-weight: 600;
+}
+
+.data-table td {
+  color: #374151;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   border: none;
-  box-shadow: 0 1px 3px rgba(60, 60, 100, 0.06);
+  background: none;
+  cursor: pointer;
   transition: background 0.2s;
 }
 
-.enhanced-add-item:hover {
-  background: #2563eb;
+.btn-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
-.form-total {
-  background: #f9fafb;
-  padding: 16px;
-  border-radius: 6px;
+.order-summary {
+  background: #f8f9fe;
+  padding: 1rem;
+  border-radius: 8px;
+  margin: 1rem 0;
   text-align: right;
-  margin-bottom: 24px;
-  font-size: 1.125rem;
 }
 
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
+.order-summary h4 {
+  color: #1a1f36;
+  margin: 0;
+  font-size: 1.1rem;
 }
 
-.btn-primary,
-.btn-secondary {
-  padding: 12px 24px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-  font-size: 14px;
-}
-
-.btn-primary {
-  background: #3b82f6;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #2563eb;
-}
-
-.btn-primary:disabled {
-  background: #9ca3af;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
-  border: 1px solid #d1d5db;
-}
-
-.btn-secondary:hover {
-  background: #e5e7eb;
+textarea {
+  resize: vertical;
+  min-height: 80px;
 }
 
 .success {
@@ -1123,8 +850,184 @@ export default {
   text-align: center;
 }
 
+.filters-container {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.search-input,
+.filter-select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  max-width: 250px;
+}
+
+.search-input:focus,
+.filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal-wide {
+  max-width: 1200px;
+  width: 95%;
+  margin: 0 auto;
+}
+
+.order-items-table td {
+  min-width: 120px;
+  vertical-align: top;
+  padding: 12px 8px;
+  position: relative;
+}
+
+.order-items-table td:first-child {
+  width: 35%;
+  min-width: 300px;
+}
+
+.order-items-table td:nth-child(2) {
+  width: 15%;
+  min-width: 120px;
+}
+
+.order-items-table td:nth-child(3),
+.order-items-table td:nth-child(4) {
+  width: 15%;
+  min-width: 100px;
+}
+
+.order-items-table td:nth-child(5) {
+  width: 15%;
+  min-width: 100px;
+  text-align: right;
+}
+
+.order-items-table td:last-child {
+  width: 5%;
+  min-width: 80px;
+  text-align: center;
+}
+
+.order-items-table .form-input {
+  margin-bottom: 0;
+  min-height: 40px;
+  padding: 8px 12px;
+  line-height: 1.4;
+}
+
+.order-items-table select.form-input {
+  height: auto;
+  min-height: 40px;
+}
+
+.order-items-table input.form-input {
+  height: 40px;
+}
+
+.order-items-table tbody tr {
+  min-height: 80px;
+}
+
+.unit-info {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  line-height: 1.2;
+}
+
+.unit-total {
+  font-size: 11px;
+  color: #0066cc;
+  margin-top: 4px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+/* Dropdown Styles */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-toggle {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  width: 95px;
+  text-align: center;
+}
+
+.dropdown-toggle:hover {
+  background: #e5e7eb;
+}
+
+/* Click-based dropdown */
+.dropdown-open .dropdown-menu {
+  display: block;
+}
+
+/* Table container overflow management */
+.table-container:has(.dropdown-open) {
+  overflow: visible;
+}
+
+.table-container.dropdown-active {
+  overflow: visible;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  width: 95px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  text-align: center;
+  cursor: pointer;
+  color: #374151;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: #f3f4f6;
+}
+
+.delete-action {
+  background: #dc2626;
+  color: white;
+}
+
+.delete-action:hover {
+  background: #b91c1c;
+}
+
 @media (max-width: 768px) {
-  .orders {
+  .page-container {
     padding: 16px;
   }
   
@@ -1134,26 +1037,15 @@ export default {
     align-items: stretch;
   }
   
-  .orders-stats {
+  .card-grid {
     grid-template-columns: 1fr;
   }
   
-  .orders-table {
-    overflow-x: auto;
-  }
-  
-  .modal {
-    width: 95%;
-    margin: 16px;
-  }
-  
-  .order-item {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  
-  .item-total {
-    text-align: left;
+  .modal-wide {
+    width: 98%;
+    margin: 8px auto;
+    max-height: 95vh;
+    overflow-y: auto;
   }
 }
 </style>

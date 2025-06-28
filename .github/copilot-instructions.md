@@ -14,9 +14,11 @@ This is a Vue.js web application for managing a firework store called "Firework 
 ## Technical Stack
 - **Frontend**: Vue.js 3.x with Vue CLI
 - **Build Tool**: Webpack (via Vue CLI)
-- **Styling**: CSS3 with potential for component libraries
-- **State Management**: To be determined (Pinia or Vuex if needed)
+- **Styling**: CSS3 with custom component styles
+- **State Management**: Pinia for centralized state management
 - **Routing**: Vue Router for navigation
+- **Backend**: Firebase Firestore for data storage
+- **Data Caching**: LocalStorage for offline capabilities
 
 ## Code Style Guidelines
 - Use Vue.js single-file components (.vue files)
@@ -26,6 +28,13 @@ This is a Vue.js web application for managing a firework store called "Firework 
 - Organize components in logical directory structure
 - Add proper error handling and validation
 - Include JSDoc comments for complex functions
+
+## Important Implementation Details
+- **Unit Configuration**: Products use a hierarchical unit system (Item → Package → Case) managed through a unitConfig object
+- **Pagination**: All list views use a reusable Pagination component (10 items per page)
+- **Inventory Updates**: Receiving orders adds to current inventory (uses proper numeric conversion)
+- **Firebase Integration**: All data is stored in Firebase with local caching
+- **Error Handling**: Conversion errors are prevented by explicit Number() conversions
 
 ## Business Logic
 - Focus on inventory tracking and management workflows

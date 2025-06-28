@@ -4,34 +4,42 @@ import HomeView from '@/views/HomeView.vue'
 const routes = [
   {
     path: '/',
-    name: 'Home',
+    name: 'home',
     component: HomeView
   },
   {
     path: '/inventory',
-    name: 'Inventory',
+    name: 'inventory',
     component: () => import('@/views/InventoryView.vue')
   },
   {
     path: '/products',
-    name: 'Products',
-    component: () => import('@/views/ProductsView.vue')
+    name: 'products',
+    component: () => import('@/views/ProductsView.vue'),
+    props: route => ({ id: route.query.id })
   },
   {
     path: '/categories',
-    name: 'Categories',
-    component: () => import('@/views/CategoriesView.vue')
+    name: 'categories',
+    component: () => import('@/views/CategoriesView.vue'),
+    props: route => ({ id: route.query.id })
   },
   {
     path: '/vendors',
-    name: 'Vendors',
-    component: () => import('@/views/VendorsView.vue')
+    name: 'vendors',
+    component: () => import('@/views/VendorsView.vue'),
+    props: route => ({ id: route.query.id })
   },
   {
     path: '/orders',
-    name: 'Orders',
-    component: () => import('@/views/OrdersView.vue')
-  }
+    name: 'orders',
+    component: () => import('@/views/OrdersView.vue'),
+    props: route => ({ 
+      id: route.query.id,
+      productId: route.query.productId,
+      vendorId: route.query.vendorId
+    })
+  },
 ]
 
 const router = createRouter({

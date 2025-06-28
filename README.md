@@ -4,12 +4,13 @@ A comprehensive Vue.js web application for managing firework store inventory, or
 
 ## Features
 
-- **📦 Product Management** - Add, edit, and organize firework products with detailed specifications
-- **📊 Inventory Tracking** - Real-time stock monitoring with low stock alerts
-- **🛒 Order Processing** - Manage customer orders and order lifecycle
+- **📦 Product Management** - Add, edit, and organize firework products with detailed specifications and hierarchical unit configuration
+- **📊 Inventory Tracking** - Real-time stock monitoring with low stock alerts and proper quantity management
+- **🛒 Order Processing** - Manage customer orders and order lifecycle with integrated inventory updates
 - **🏷️ Category Organization** - Organize products into logical categories
 - **🏢 Vendor Management** - Maintain supplier relationships and contact information
 - **🚨 Smart Alerts** - Automated notifications for low stock and critical updates
+- **📄 Pagination** - Smart pagination system for all major views (10 items per page)
 - **📱 Responsive Design** - Works seamlessly on desktop, tablet, and mobile devices
 
 ## Technology Stack
@@ -67,18 +68,24 @@ npm run lint --fix
 
 ```
 src/
-├── components/          # Reusable Vue components
+├── components/         # Reusable Vue components
+│   └── Pagination.vue  # Reusable pagination component
 ├── views/              # Page-level components
-│   ├── Home.vue        # Dashboard and overview
-│   ├── Products.vue    # Product management
-│   ├── Inventory.vue   # Stock tracking
-│   ├── Orders.vue      # Order processing
-│   ├── Categories.vue  # Category management
-│   └── Vendors.vue     # Vendor management
+│   ├── HomeView.vue            # Dashboard and overview
+│   ├── ProductsView.vue        # Product management
+│   ├── InventoryView.vue       # Stock tracking
+│   ├── OrdersView.vue          # Order processing
+│   ├── CategoriesView.vue      # Category management
+│   └── VendorsView.vue         # Vendor management
 ├── router/             # Vue Router configuration
+│   └── index.js        # Route definitions
 ├── stores/             # Pinia state management
 │   └── inventory.js    # Main application store
+├── firebase/           # Firebase integration
+│   ├── config.js       # Firebase configuration
+│   └── firebaseService.js # Firebase service methods
 ├── assets/             # Static assets
+├── styles/             # Global CSS styles
 └── main.js            # Application entry point
 ```
 
@@ -91,11 +98,13 @@ src/
 - Manage vendor relationships
 
 ### Inventory Tracking
-- Real-time stock level monitoring
+- Real-time stock level monitoring with Firebase integration
 - Location-based inventory management
 - Low stock alerts and notifications
 - Stock adjustment capabilities
-- Value calculations and reporting
+- Proper handling of numeric quantities to prevent calculation errors
+- Support for hierarchical unit management
+- Inventory updates when orders are received
 
 ### Order Processing
 - Customer order creation and management

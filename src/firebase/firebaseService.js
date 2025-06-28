@@ -195,10 +195,10 @@ class FirebaseService {
   }
 
   // Audit logging
-  async logAuditEntry(collection, action, documentId, details = null) {
+  async logAuditEntry(collectionName, action, documentId, details = null) {
     try {
       const auditData = {
-        collection,
+        collection: collectionName,
         action,
         documentId,
         details,
@@ -255,13 +255,14 @@ class FirebaseService {
     products.forEach(product => {
       const inventoryItem = inventory.find(inv => inv.productId === product.id);
       const currentStock = inventoryItem ? inventoryItem.quantity : 0;
+      const thresholdInItems = product.thresholdInItems || product.lowInventoryThreshold || 0;
       
-      if (currentStock <= product.lowInventoryThreshold) {
+      if (currentStock <= thresholdInItems) {
         lowStockItems.push({
           productId: product.id,
           productName: product.name,
           currentStock,
-          threshold: product.lowInventoryThreshold
+          threshold: thresholdInItems
         });
       }
     });
@@ -383,6 +384,11 @@ class FirebaseService {
     } catch (error) {
       console.error('Error cleaning up old audit logs:', error);
     }
+  }
+
+  async clearInventoryCache() {
+    const cacheKey = `cached_${this.collections.INVENTORY}`;
+    this.clearCachedData(cacheKey);
   }
 }
 
