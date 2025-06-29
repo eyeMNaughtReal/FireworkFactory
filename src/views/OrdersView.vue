@@ -274,21 +274,7 @@ export default {
     // Define available seasons
     const seasons = [
       { value: 'new-years', label: '🎊 New Year\'s' },
-      { value: 'chinese-new-year', label: '🏮 Chinese New Year' },
-      { value: 'valentines', label: '💝 Valentine\'s Day' },
-      { value: 'st-patricks', label: '🍀 St. Patrick\'s Day' },
-      { value: 'easter', label: '🐰 Easter' },
-      { value: 'memorial-day', label: '🇺🇸 Memorial Day' },
-      { value: 'july-4th', label: '🎆 4th of July' },
-      { value: 'labor-day', label: '⚒️ Labor Day' },
-      { value: 'halloween', label: '🎃 Halloween' },
-      { value: 'thanksgiving', label: '🦃 Thanksgiving' },
-      { value: 'christmas', label: '🎄 Christmas' },
-      { value: 'diwali', label: '🪔 Diwali' },
-      { value: 'wedding-season', label: '💒 Wedding Season' },
-      { value: 'graduation', label: '🎓 Graduation' },
-      { value: 'general', label: '📦 General Stock' },
-      { value: 'other', label: '🔹 Other' }
+      { value: 'july-4th', label: '🎆 4th of July' }
     ]
 
     // Get current date in YYYY-MM-DD format
