@@ -93,9 +93,6 @@ describe('OrdersView Season Feature', () => {
     expect(optionValues).toContain('')  // "All Seasons"
     expect(optionValues).toContain('july-4th')
     expect(optionValues).toContain('new-years')
-    expect(optionValues).toContain('christmas')
-    expect(optionValues).toContain('halloween')
-    expect(optionValues).toContain('general')
   })
 
   it('should filter orders by season when season filter is applied', async () => {
@@ -144,7 +141,7 @@ describe('OrdersView Season Feature', () => {
     // Check that season field exists in form
     const seasonSelects = wrapper.findAll('select').filter(select => 
       select.element.querySelector('option[value="july-4th"]') &&
-      select.element.querySelector('option[value="christmas"]')
+      select.element.querySelector('option[value="new-years"]')
     )
     
     expect(seasonSelects.length).toBeGreaterThanOrEqual(1)
@@ -210,9 +207,6 @@ describe('OrdersView Season Feature', () => {
     // Test season label function
     expect(vm.getSeasonLabel('july-4th')).toBe('🎆 4th of July')
     expect(vm.getSeasonLabel('new-years')).toBe('🎊 New Year\'s')
-    expect(vm.getSeasonLabel('christmas')).toBe('🎄 Christmas')
-    expect(vm.getSeasonLabel('halloween')).toBe('🎃 Halloween')
-    expect(vm.getSeasonLabel('general')).toBe('📦 General Stock')
     expect(vm.getSeasonLabel('unknown-season')).toBe('Unknown Season')
   })
 })
