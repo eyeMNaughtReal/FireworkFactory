@@ -16,6 +16,12 @@
         <router-link :to="{ name: 'categories' }" class="nav-link">Categories</router-link>
         <router-link :to="{ name: 'vendors' }" class="nav-link">Vendors</router-link>
         <router-link :to="{ name: 'statistics' }" class="nav-link">Statistics</router-link>
+        <router-link 
+          v-if="environment === 'development'" 
+          :to="{ name: 'error-monitoring' }" 
+          class="nav-link dev-only">
+          🔧 Error Monitor
+        </router-link>
       </div>
 
       <div class="sidebar-bottom">
@@ -161,6 +167,19 @@ export default {
   background: #f1f5f9;
   color: #1a1f36;
   font-weight: 600;
+}
+
+.nav-link.dev-only {
+  color: #f59e0b;
+  font-size: 0.875rem;
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+.nav-link.dev-only:hover {
+  background: #fef3c7;
+  color: #d97706;
 }
 
 .sidebar-bottom {

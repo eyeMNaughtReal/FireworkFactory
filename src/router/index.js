@@ -45,6 +45,11 @@ const routes = [
     name: 'statistics',
     component: () => import('@/views/StatisticsView.vue')
   },
+  {
+    path: '/error-monitoring',
+    name: 'error-monitoring',
+    component: () => import('@/views/ErrorMonitoringDemo.vue')
+  },
 ]
 
 const router = createRouter({
