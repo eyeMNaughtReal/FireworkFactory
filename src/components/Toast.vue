@@ -26,6 +26,7 @@
 
 <script>
 import { ref } from 'vue'
+import notificationHistoryService from '@/services/notificationHistoryService'
 
 const toasts = ref([])
 let nextId = 1
@@ -34,6 +35,19 @@ export function useToast() {
   const show = (message, type = 'info', duration = 3000) => {
     const id = nextId++
     toasts.value.push({ id, message, type })
+    
+    // Store notification in history (async, don't wait for it)
+    notificationHistoryService.storeNotification({
+      type,
+      message,
+      metadata: {
+        toastId: id,
+        duration: duration
+      },
+      source: 'toast'
+    }).catch(error => {
+      console.warn('Failed to store notification in history:', error)
+    })
     
     if (duration > 0) {
       setTimeout(() => {

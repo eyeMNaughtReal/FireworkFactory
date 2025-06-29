@@ -16,6 +16,9 @@
         <router-link :to="{ name: 'categories' }" class="nav-link">Categories</router-link>
         <router-link :to="{ name: 'vendors' }" class="nav-link">Vendors</router-link>
         <router-link :to="{ name: 'statistics' }" class="nav-link">Statistics</router-link>
+        <router-link :to="{ name: 'backup' }" class="nav-link">Backup</router-link>
+        <router-link :to="{ name: 'audit' }" class="nav-link">Audit Logs</router-link>
+        <router-link :to="{ name: 'notifications' }" class="nav-link">Notifications</router-link>
         <router-link 
           v-if="environment === 'development'" 
           :to="{ name: 'error-monitoring' }" 

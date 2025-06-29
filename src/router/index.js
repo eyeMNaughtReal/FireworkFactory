@@ -46,6 +46,21 @@ const routes = [
     component: () => import('@/views/StatisticsView.vue')
   },
   {
+    path: '/backup',
+    name: 'backup',
+    component: () => import('@/views/BackupView.vue')
+  },
+  {
+    path: '/audit',
+    name: 'audit',
+    component: () => import('@/views/AuditView.vue')
+  },
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: () => import('@/views/NotificationHistoryView.vue')
+  },
+  {
     path: '/error-monitoring',
     name: 'error-monitoring',
     component: () => import('@/views/ErrorMonitoringDemo.vue')
