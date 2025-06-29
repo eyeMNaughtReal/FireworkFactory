@@ -132,6 +132,11 @@
 
     <!-- Toast Component -->
     <ToastNotification />
+
+    <footer class="app-footer">
+      <span>Firework Factory &copy; 2025</span>
+      <span class="app-version">v{{ appVersion }}</span>
+    </footer>
   </div>
 </template>
 
@@ -139,6 +144,7 @@
 import ToastNotification from '@/components/Toast.vue'
 import notificationHistoryService from '@/services/notificationHistoryService.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { APP_VERSION } from './version.js'
 
 export default {
   name: 'App',
@@ -153,7 +159,8 @@ export default {
       isSystemSectionExpanded: false, // Collapsed by default
       isUserMenuExpanded: false,
       unreadNotificationCount: 0,
-      notificationService: notificationHistoryService
+      notificationService: notificationHistoryService,
+      appVersion: APP_VERSION
     }
   },
   computed: {
@@ -1168,5 +1175,25 @@ h3 {
   padding: 0;
 }
 
-/* ...existing code... */
+/* Footer */
+.app-footer {
+  width: 100%;
+  text-align: center;
+  padding: 1rem 0;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.95rem;
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.app-version {
+  font-weight: bold;
+  color: #6366f1;
+}
 </style>
