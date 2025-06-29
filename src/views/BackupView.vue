@@ -75,11 +75,10 @@
             style="display: none"
           >
           <button 
-            class="btn-file-upload" 
+            class="btn-primary" 
             @click="$refs.fileInput.click()"
             :disabled="isRestoring"
           >
-            <span class="upload-icon">📁</span>
             {{ isRestoring ? 'Restoring...' : 'Select Backup File' }}
           </button>
         </div>
