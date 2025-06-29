@@ -36,18 +36,30 @@ export function useToast() {
     const id = nextId++
     toasts.value.push({ id, message, type })
     
-    // Store notification in history (async, don't wait for it)
-    notificationHistoryService.storeNotification({
-      type,
-      message,
-      metadata: {
-        toastId: id,
-        duration: duration
-      },
-      source: 'toast'
-    }).catch(error => {
-      console.warn('Failed to store notification in history:', error)
-    })
+    // Filter out meta-notifications that shouldn't be stored
+    const isMetaNotification = 
+      message.includes('marked as read') ||
+      message.includes('history refresh') ||
+      message.includes('Notification marked as read') ||
+      message.includes('Notification history refresh')
+    
+    // Only store error and warning notifications (not success/info/meta)
+    const shouldStore = !isMetaNotification && (type === 'error' || type === 'warning')
+    
+    if (shouldStore) {
+      // Store notification in history (async, don't wait for it)
+      notificationHistoryService.storeNotification({
+        type,
+        message,
+        metadata: {
+          toastId: id,
+          duration: duration
+        },
+        source: 'toast'
+      }).catch(error => {
+        console.warn('Failed to store notification in history:', error)
+      })
+    }
     
     if (duration > 0) {
       setTimeout(() => {

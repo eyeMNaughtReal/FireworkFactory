@@ -102,16 +102,21 @@ class NotificationHistoryService {
   }
 
   /**
-   * Get notification statistics
+   * Get notification statistics (only for error and warning notifications)
    * @returns {Object} Statistics about notifications
    */
   async getNotificationStatistics() {
     try {
       const notifications = await this.getNotificationHistory({ limit: 200 });
       
+      // Filter to only include error and warning notifications for badge count
+      const relevantNotifications = notifications.filter(n => 
+        n.type === 'error' || n.type === 'warning'
+      );
+      
       const stats = {
         totalNotifications: notifications.length,
-        unreadCount: notifications.filter(n => !n.read).length,
+        unreadCount: relevantNotifications.filter(n => !n.read).length, // Only count unread errors/warnings
         typeCounts: {},
         recentNotifications: notifications.slice(0, 5),
         notificationsByDay: {}

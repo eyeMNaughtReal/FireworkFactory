@@ -75,10 +75,11 @@
             style="display: none"
           >
           <button 
-            class="btn-warning" 
+            class="btn-file-upload" 
             @click="$refs.fileInput.click()"
             :disabled="isRestoring"
           >
+            <span class="upload-icon">📁</span>
             {{ isRestoring ? 'Restoring...' : 'Select Backup File' }}
           </button>
         </div>
@@ -630,6 +631,47 @@ export default {
   padding: 24px;
   max-height: 70vh;
   overflow-y: auto;
+}
+
+/* File Upload Button Styling */
+.btn-file-upload {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 160px;
+  justify-content: center;
+}
+
+.btn-file-upload:hover:not(:disabled) {
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+  box-shadow: 0 6px 8px rgba(99, 102, 241, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-file-upload:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.2);
+}
+
+.btn-file-upload:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.upload-icon {
+  font-size: 1rem;
 }
 
 @media (max-width: 768px) {
