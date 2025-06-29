@@ -1,0 +1,1 @@
+// Create custom favicon.ico file for Firework Factory (use the SVG design as reference)
