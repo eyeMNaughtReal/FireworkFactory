@@ -15,6 +15,7 @@
         <router-link :to="{ name: 'orders' }" class="nav-link">Orders</router-link>
         <router-link :to="{ name: 'categories' }" class="nav-link">Categories</router-link>
         <router-link :to="{ name: 'vendors' }" class="nav-link">Vendors</router-link>
+        <router-link :to="{ name: 'statistics' }" class="nav-link">Statistics</router-link>
       </div>
 
       <div class="sidebar-bottom">
