@@ -20,6 +20,12 @@
           {{ vendor.name }}
         </option>
       </select>
+      <select v-model="seasonFilter" class="filter-select">
+        <option value="">All Seasons</option>
+        <option v-for="season in seasons" :key="season.value" :value="season.value">
+          {{ season.label }}
+        </option>
+      </select>
       <select v-model="statusFilter" class="filter-select">
         <option value="">All Statuses</option>
         <option value="ordered">Ordered</option>
@@ -35,6 +41,7 @@
           <tr>
             <th>Order #</th>
             <th>Order Date</th>
+            <th>Season</th>
             <th>Items</th>
             <th>Total</th>
             <th>Status</th>
@@ -45,6 +52,11 @@
           <tr v-for="order in paginatedOrders" :key="order.id">
             <td>{{ order.orderNumber || order.id.slice(-6) }}</td>
             <td>{{ formatDate(order.orderDate || order.createdAt) }}</td>
+            <td>
+              <span class="season-badge" :class="`season-${order.season || 'general'}`">
+                {{ getSeasonLabel(order.season) }}
+              </span>
+            </td>
             <td>{{ order.items?.length || 0 }}</td>
             <td>${{ (order.total || calculateOrderTotal(order)).toFixed(2) }}</td>
             <td>
@@ -112,6 +124,15 @@
                 class="form-input"
                 required
               />
+            </div>
+            <div class="form-group">
+              <label>Season</label>
+              <select v-model="formData.season" class="form-input" required>
+                <option value="">Select Season</option>
+                <option v-for="season in seasons" :key="season.value" :value="season.value">
+                  {{ season.label }}
+                </option>
+              </select>
             </div>
             <div class="form-group">
               <label>Status</label>
@@ -237,15 +258,38 @@ export default {
     const showOrderForm = ref(false)
     const submitting = ref(false)
     const errorMsg = ref('')
-    const editingOrder = ref(null)
+    
+    // Filter reactive refs
     const searchQuery = ref('')
     const vendorFilter = ref('')
+    const seasonFilter = ref('')
     const statusFilter = ref('')
+    const editingOrder = ref(null)
     const openDropdown = ref(null)
     
-    // Pagination variables
+    // Pagination
     const currentPage = ref(1)
     const itemsPerPage = ref(10)
+
+    // Define available seasons
+    const seasons = [
+      { value: 'new-years', label: '🎊 New Year\'s' },
+      { value: 'chinese-new-year', label: '🏮 Chinese New Year' },
+      { value: 'valentines', label: '💝 Valentine\'s Day' },
+      { value: 'st-patricks', label: '🍀 St. Patrick\'s Day' },
+      { value: 'easter', label: '🐰 Easter' },
+      { value: 'memorial-day', label: '🇺🇸 Memorial Day' },
+      { value: 'july-4th', label: '🎆 4th of July' },
+      { value: 'labor-day', label: '⚒️ Labor Day' },
+      { value: 'halloween', label: '🎃 Halloween' },
+      { value: 'thanksgiving', label: '🦃 Thanksgiving' },
+      { value: 'christmas', label: '🎄 Christmas' },
+      { value: 'diwali', label: '🪔 Diwali' },
+      { value: 'wedding-season', label: '💒 Wedding Season' },
+      { value: 'graduation', label: '🎓 Graduation' },
+      { value: 'general', label: '📦 General Stock' },
+      { value: 'other', label: '🔹 Other' }
+    ]
 
     // Get current date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0]
@@ -253,6 +297,7 @@ export default {
     const formData = reactive({
       items: [],
       status: 'ordered',
+      season: '',
       orderDate: today
     })
 
@@ -310,6 +355,12 @@ export default {
       return product ? product.vendorId : ''
     }
 
+    const getSeasonLabel = (seasonValue) => {
+      if (!seasonValue) return 'General Stock'
+      const season = seasons.find(s => s.value === seasonValue)
+      return season ? season.label : 'Unknown Season'
+    }
+
     const orders = computed(() => {
       let result = store.orders
 
@@ -344,6 +395,13 @@ export default {
             return product && product.vendorId === vendorId
           })
         )
+      }
+
+      if (seasonFilter.value) {
+        result = result.filter(order => {
+          const orderSeason = order.season || 'general'
+          return orderSeason === seasonFilter.value
+        })
       }
 
       if (statusFilter.value) {
@@ -462,6 +520,7 @@ export default {
     const resetForm = () => {
       formData.items = []
       formData.status = 'ordered'
+      formData.season = ''
       formData.orderDate = today
       errorMsg.value = ''
     }
@@ -482,6 +541,7 @@ export default {
         const orderData = {
           items: formData.items,
           status: formData.status,
+          season: formData.season,
           total: orderTotal.value,
           orderDate: formData.orderDate,
           createdAt: new Date().toISOString()
@@ -516,6 +576,7 @@ export default {
       editingOrder.value = order
       formData.items = [...order.items]
       formData.status = order.status
+      formData.season = order.season || ''
       formData.orderDate = order.orderDate || new Date(order.createdAt).toISOString().split('T')[0]
       showOrderForm.value = true
     }
@@ -588,7 +649,9 @@ export default {
       formData,
       searchQuery,
       vendorFilter,
+      seasonFilter,
       statusFilter,
+      seasons,
       products,
       vendors,
       filteredOrders,
@@ -598,6 +661,7 @@ export default {
       orderTotal,
       getVendorName,
       getProductVendorId,
+      getSeasonLabel,
       calculateOrderTotal,
       getUnitInfo,
       calculateTotalItems,
@@ -673,6 +737,34 @@ export default {
   color: #dc2626;
 }
 
+/* Season badge styles */
+.season-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  min-width: 80px;
+}
+
+.season-new-years { background: #f3e8ff; color: #7c3aed; }
+.season-chinese-new-year { background: #fef3c7; color: #d97706; }
+.season-valentines { background: #fce7f3; color: #be185d; }
+.season-st-patricks { background: #d1fae5; color: #059669; }
+.season-easter { background: #ddd6fe; color: #7c3aed; }
+.season-memorial-day { background: #dbeafe; color: #1d4ed8; }
+.season-july-4th { background: #fee2e2; color: #dc2626; }
+.season-labor-day { background: #f3f4f6; color: #374151; }
+.season-halloween { background: #fed7aa; color: #ea580c; }
+.season-thanksgiving { background: #fef3c7; color: #d97706; }
+.season-christmas { background: #dcfce7; color: #16a34a; }
+.season-diwali { background: #fef3c7; color: #d97706; }
+.season-wedding-season { background: #f9fafb; color: #6b7280; }
+.season-graduation { background: #dbeafe; color: #1d4ed8; }
+.season-general { background: #f3f4f6; color: #6b7280; }
+.season-other { background: #e0e7ff; color: #3730a3; }
+
 .card-text {
   margin-bottom: 16px;
   color: #374151;
@@ -710,7 +802,7 @@ export default {
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 16px;
 }
 
