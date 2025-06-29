@@ -1,88 +1,125 @@
 <template>
   <div id="app">
-    <nav class="sidebar">
-      <div class="sidebar-header">
-        <router-link :to="{ name: 'home' }" class="nav-brand">
-          <span class="logo-text">Firework Factory</span>
-        </router-link>
+    <!-- Loading Screen for Auth Initialization -->
+    <div v-if="!authStore.isInitialized" class="auth-loading">
+      <div class="auth-loading-content">
+        <div class="firework-spinner"></div>
+        <p>Loading Firework Factory...</p>
       </div>
+    </div>
+
+    <!-- Main App Content -->
+    <div v-else-if="authStore.isAuthenticated" class="app-content">
+      <nav class="sidebar">
+        <div class="sidebar-header">
+          <router-link :to="{ name: 'home' }" class="nav-brand">
+            <span class="logo-text">Firework Factory</span>
+          </router-link>
+        </div>
+        
+        <!-- User Profile Section -->
+        <div class="user-section">
+          <div class="user-info" @click="toggleUserMenu">
+            <div class="user-avatar">{{ authStore.initials }}</div>
+            <div class="user-details">
+              <div class="user-name">{{ authStore.displayName }}</div>
+              <div class="user-role">{{ authStore.userProfile?.role || 'User' }}</div>
+            </div>
+            <span class="dropdown-arrow" :class="{ 'expanded': isUserMenuExpanded }">▼</span>
+          </div>
+          
+          <div class="user-menu" :class="{ 'expanded': isUserMenuExpanded }">
+            <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="isUserMenuExpanded = false">
+              👤 Profile
+            </router-link>
+            <button @click="handleSignOut" class="user-menu-item sign-out">
+              🚪 Sign Out
+            </button>
+          </div>
+        </div>
+        
+        <div class="nav-menu">
+          <!-- Dashboard -->
+          <div class="nav-section">
+            <router-link :to="{ name: 'home' }" class="nav-link" exact>
+              <span class="nav-text">Dashboard</span>
+            </router-link>
+          </div>
+
+          <!-- Core Operations -->
+          <div class="nav-section">
+            <div class="nav-section-header">Operations</div>
+            <router-link :to="{ name: 'products' }" class="nav-link">
+              <span class="nav-text">Products</span>
+            </router-link>
+            <router-link :to="{ name: 'inventory' }" class="nav-link">
+              <span class="nav-text">Inventory</span>
+            </router-link>
+            <router-link :to="{ name: 'orders' }" class="nav-link">
+              <span class="nav-text">Orders</span>
+            </router-link>
+          </div>
+
+          <!-- Management -->
+          <div class="nav-section">
+            <div class="nav-section-header">Management</div>
+            <router-link :to="{ name: 'categories' }" class="nav-link">
+              <span class="nav-text">Categories</span>
+            </router-link>
+            <router-link :to="{ name: 'vendors' }" class="nav-link">
+              <span class="nav-text">Vendors</span>
+            </router-link>
+            <router-link :to="{ name: 'statistics' }" class="nav-link">
+              <span class="nav-text">Analytics</span>
+            </router-link>
+          </div>
+
+          <!-- System Tools (Admin/Manager Only) -->
+          <div v-if="authStore.hasPermission('write')" class="nav-section">
+            <div 
+              class="nav-section-header collapsible-header" 
+              @click="toggleSystemSection"
+            >
+              <span>System</span>
+              <span class="collapse-icon" :class="{ 'collapsed': !isSystemSectionExpanded }">▼</span>
+            </div>
+            <div class="collapsible-content" :class="{ 'collapsed': !isSystemSectionExpanded }">
+              <router-link v-if="authStore.isAdmin" :to="{ name: 'backup' }" class="nav-link">
+                <span class="nav-text">Backup</span>
+              </router-link>
+              <router-link v-if="authStore.isAdmin" :to="{ name: 'audit' }" class="nav-link">
+                <span class="nav-text">Audit Logs</span>
+              </router-link>
+              <router-link :to="{ name: 'notifications' }" class="nav-link">
+                <span class="nav-text">Notifications</span>
+                <span v-if="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
+              </router-link>
+            </div>
+          </div>
+
+          <!-- Development Tools -->
+          <div v-if="environment === 'development' && authStore.isAdmin" class="nav-section dev-section">
+            <div class="nav-section-header">Development</div>
+            <router-link :to="{ name: 'error-monitoring' }" class="nav-link dev-only">
+              <span class="nav-text">Error Monitor</span>
+            </router-link>
+          </div>
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="environment-badge">
+            {{ environment }}
+          </div>
+        </div>
+      </nav>
       
-      <div class="nav-menu">
-        <!-- Dashboard -->
-        <div class="nav-section">
-          <router-link :to="{ name: 'home' }" class="nav-link" exact>
-            <span class="nav-text">Dashboard</span>
-          </router-link>
-        </div>
-
-        <!-- Core Operations -->
-        <div class="nav-section">
-          <div class="nav-section-header">Operations</div>
-          <router-link :to="{ name: 'products' }" class="nav-link">
-            <span class="nav-text">Products</span>
-          </router-link>
-          <router-link :to="{ name: 'inventory' }" class="nav-link">
-            <span class="nav-text">Inventory</span>
-          </router-link>
-          <router-link :to="{ name: 'orders' }" class="nav-link">
-            <span class="nav-text">Orders</span>
-          </router-link>
-        </div>
-
-        <!-- Management -->
-        <div class="nav-section">
-          <div class="nav-section-header">Management</div>
-          <router-link :to="{ name: 'categories' }" class="nav-link">
-            <span class="nav-text">Categories</span>
-          </router-link>
-          <router-link :to="{ name: 'vendors' }" class="nav-link">
-            <span class="nav-text">Vendors</span>
-          </router-link>
-          <router-link :to="{ name: 'statistics' }" class="nav-link">
-            <span class="nav-text">Analytics</span>
-          </router-link>
-        </div>
-
-        <!-- System Tools -->
-        <div class="nav-section">
-          <div 
-            class="nav-section-header collapsible-header" 
-            @click="toggleSystemSection"
-          >
-            <span>System</span>
-            <span class="collapse-icon" :class="{ 'collapsed': !isSystemSectionExpanded }">▼</span>
-          </div>
-          <div class="collapsible-content" :class="{ 'collapsed': !isSystemSectionExpanded }">
-            <router-link :to="{ name: 'backup' }" class="nav-link">
-              <span class="nav-text">Backup</span>
-            </router-link>
-            <router-link :to="{ name: 'audit' }" class="nav-link">
-              <span class="nav-text">Audit Logs</span>
-            </router-link>
-            <router-link :to="{ name: 'notifications' }" class="nav-link">
-              <span class="nav-text">Notifications</span>
-              <span v-if="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
-            </router-link>
-          </div>
-        </div>
-
-        <!-- Development Tools -->
-        <div v-if="environment === 'development'" class="nav-section dev-section">
-          <div class="nav-section-header">Development</div>
-          <router-link :to="{ name: 'error-monitoring' }" class="nav-link dev-only">
-            <span class="nav-text">Error Monitor</span>
-          </router-link>
-        </div>
+      <div class="main-content">
+        <router-view />
       </div>
+    </div>
 
-      <div class="sidebar-bottom">
-        <div class="environment-badge">
-          {{ environment }}
-        </div>
-      </div>
-    </nav>
-    
-    <div class="main-content">
+    <!-- Auth View for Non-Authenticated Users -->
+    <div v-else class="auth-wrapper">
       <router-view />
     </div>
 
@@ -101,6 +138,7 @@
 <script>
 import ToastNotification from '@/components/Toast.vue'
 import notificationHistoryService from '@/services/notificationHistoryService.js'
+import { useAuthStore } from '@/stores/auth.js'
 
 export default {
   name: 'App',
@@ -113,9 +151,51 @@ export default {
       toasts: [],
       environment: process.env.NODE_ENV,
       isSystemSectionExpanded: false, // Collapsed by default
+      isUserMenuExpanded: false,
       unreadNotificationCount: 0,
       notificationService: notificationHistoryService
     }
+  },
+  computed: {
+    authStore() {
+      return useAuthStore()
+    }
+  },
+  async mounted() {
+    // Initialize authentication
+    await this.authStore.initializeAuth()
+    
+    // Load saved preferences
+    const savedSystemSection = localStorage.getItem('systemSectionExpanded')
+    if (savedSystemSection !== null) {
+      this.isSystemSectionExpanded = savedSystemSection === 'true'
+    }
+
+    // Set up notification updates if authenticated
+    if (this.authStore.isAuthenticated) {
+      this.fetchUnreadNotificationCount()
+      this.startNotificationPolling()
+    }
+
+    // Close user menu when clicking outside
+    document.addEventListener('click', this.handleClickOutside)
+    
+    // Listen for route changes to update notification count
+    this.$router.afterEach(() => {
+      // Slight delay to allow for any notification updates from the new page
+      setTimeout(() => {
+        this.fetchUnreadNotificationCount()
+      }, 500)
+    })
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside)
+    if (this.notificationPollingInterval) {
+      clearInterval(this.notificationPollingInterval)
+    }
+    // Cleanup auth store
+    this.authStore.cleanup()
+    this.stopNotificationPolling()
   },
   methods: {
     showToast(message, type = 'info') {
@@ -144,7 +224,28 @@ export default {
       // Save preference to localStorage
       localStorage.setItem('systemSectionExpanded', this.isSystemSectionExpanded.toString())
     },
+    toggleUserMenu() {
+      this.isUserMenuExpanded = !this.isUserMenuExpanded
+    },
+    handleClickOutside(event) {
+      // Close user menu if clicking outside
+      if (!event.target.closest('.user-section')) {
+        this.isUserMenuExpanded = false
+      }
+    },
+    async handleSignOut() {
+      try {
+        this.isUserMenuExpanded = false
+        await this.authStore.signOut()
+        this.$router.push({ name: 'auth' })
+      } catch (error) {
+        console.error('Sign out error:', error)
+        this.showToast('Error signing out', 'error')
+      }
+    },
     async fetchUnreadNotificationCount() {
+      if (!this.authStore.isAuthenticated) return
+      
       try {
         const stats = await this.notificationService.getNotificationStatistics()
         this.unreadNotificationCount = stats.unreadCount || 0
@@ -189,21 +290,6 @@ export default {
     // Remove any previous localStorage preference to ensure it starts collapsed
     localStorage.removeItem('systemSectionExpanded')
     this.isSystemSectionExpanded = false
-    
-    // Start notification polling
-    this.startNotificationPolling()
-  },
-  mounted() {
-    // Listen for route changes to update notification count
-    this.$router.afterEach(() => {
-      // Slight delay to allow for any notification updates from the new page
-      setTimeout(() => {
-        this.fetchUnreadNotificationCount()
-      }, 500)
-    })
-  },
-  beforeUnmount() {
-    this.stopNotificationPolling()
   }
 }
 </script>
@@ -468,12 +554,26 @@ export default {
   box-sizing: border-box;
 }
 
+html {
+  width: 100%;
+  height: 100%;
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f8f9fe;
   color: #1a1f36;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* Toast Animations */
@@ -884,5 +984,189 @@ h3 {
   padding: 0;
 }
 
-/* Update existing components to use the typography system */
+/* Authentication Loading Screen */
+.auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.auth-loading-content {
+  text-align: center;
+}
+
+.firework-spinner {
+  width: 60px;
+  height: 60px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-top: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.auth-loading p {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* Auth Wrapper for Login/Register */
+.auth-wrapper {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* User Section in Sidebar */
+.user-section {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+  user-select: none;
+}
+
+.user-info:hover {
+  background-color: #f9fafb;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.user-details {
+  flex: 1;
+  min-width: 0; /* Allow text to truncate */
+}
+
+.user-name {
+  font-weight: 600;
+  color: #1a1f36;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: #667eea;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  margin-top: 2px;
+}
+
+.dropdown-arrow {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+  margin-left: 8px;
+}
+
+.dropdown-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+/* User Menu Dropdown */
+.user-menu {
+  position: absolute;
+  top: 100%;
+  left: 1rem;
+  right: 1rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 50;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  opacity: 0;
+}
+
+.user-menu.expanded {
+  max-height: 200px;
+  opacity: 1;
+}
+
+.user-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  color: #374151;
+  text-decoration: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.user-menu-item:last-child {
+  border-bottom: none;
+}
+
+.user-menu-item:hover {
+  background-color: #f9fafb;
+}
+
+.user-menu-item.sign-out {
+  color: #dc2626;
+}
+
+.user-menu-item.sign-out:hover {
+  background-color: #fef2f2;
+}
+
+/* App Content Layout */
+.app-content {
+  display: flex;
+  width: 100%;
+}
+
+/* Adjust main content for auth layout */
+.main-content {
+  flex: 1;
+  margin-left: 280px;
+  padding: 2rem;
+  background: #f9fafb;
+  min-height: 100vh;
+}
+
+/* When not authenticated, main content takes full width */
+.auth-wrapper .main-content {
+  margin-left: 0;
+  padding: 0;
+}
+
+/* ...existing code... */
 </style>
