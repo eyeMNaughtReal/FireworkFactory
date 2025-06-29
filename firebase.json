@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "firework-factory/dist",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
