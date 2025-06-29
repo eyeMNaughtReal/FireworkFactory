@@ -13,6 +13,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from './config.js';
+import auditService from '../services/auditService.js';
 
 // Cache expiration time (30 minutes)
 const CACHE_EXPIRATION = 30 * 60 * 1000;
@@ -197,16 +198,16 @@ class FirebaseService {
   // Audit logging
   async logAuditEntry(collectionName, action, documentId, details = null) {
     try {
-      const auditData = {
-        collection: collectionName,
+      await auditService.logAction({
         action,
+        collection: collectionName,
         documentId,
-        details,
-        timestamp: serverTimestamp(),
-        userId: 'system' // TODO: Replace with actual user ID when auth is implemented
-      };
-      
-      await addDoc(collection(db, this.collections.AUDIT_LOG), auditData);
+        data: details,
+        metadata: {
+          userId: 'system', // TODO: Replace with actual user ID when auth is implemented
+          source: 'firebase_service'
+        }
+      });
     } catch (error) {
       console.warn('Failed to log audit entry:', error);
       // Don't throw error for audit logging failures
