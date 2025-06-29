@@ -40,6 +40,11 @@ const routes = [
       vendorId: route.query.vendorId
     })
   },
+  {
+    path: '/statistics',
+    name: 'statistics',
+    component: () => import('@/views/StatisticsView.vue')
+  },
 ]
 
 const router = createRouter({
