@@ -1,30 +1,78 @@
 <template>
   <div id="app">
-    <nav class="sidebar" :class="{ 'open': isSidebarOpen }">
+    <nav class="sidebar">
       <div class="sidebar-header">
         <router-link :to="{ name: 'home' }" class="nav-brand">
-          <span class="logo-icon">🎆</span>
           <span class="logo-text">Firework Factory</span>
         </router-link>
       </div>
       
       <div class="nav-menu">
-        <router-link :to="{ name: 'home' }" class="nav-link" exact>Home</router-link>
-        <router-link :to="{ name: 'products' }" class="nav-link">Products</router-link>
-        <router-link :to="{ name: 'inventory' }" class="nav-link">Inventory</router-link>
-        <router-link :to="{ name: 'orders' }" class="nav-link">Orders</router-link>
-        <router-link :to="{ name: 'categories' }" class="nav-link">Categories</router-link>
-        <router-link :to="{ name: 'vendors' }" class="nav-link">Vendors</router-link>
-        <router-link :to="{ name: 'statistics' }" class="nav-link">Statistics</router-link>
-        <router-link :to="{ name: 'backup' }" class="nav-link">Backup</router-link>
-        <router-link :to="{ name: 'audit' }" class="nav-link">Audit Logs</router-link>
-        <router-link :to="{ name: 'notifications' }" class="nav-link">Notifications</router-link>
-        <router-link 
-          v-if="environment === 'development'" 
-          :to="{ name: 'error-monitoring' }" 
-          class="nav-link dev-only">
-          🔧 Error Monitor
-        </router-link>
+        <!-- Dashboard -->
+        <div class="nav-section">
+          <router-link :to="{ name: 'home' }" class="nav-link" exact>
+            <span class="nav-text">Dashboard</span>
+          </router-link>
+        </div>
+
+        <!-- Core Operations -->
+        <div class="nav-section">
+          <div class="nav-section-header">Operations</div>
+          <router-link :to="{ name: 'products' }" class="nav-link">
+            <span class="nav-text">Products</span>
+          </router-link>
+          <router-link :to="{ name: 'inventory' }" class="nav-link">
+            <span class="nav-text">Inventory</span>
+          </router-link>
+          <router-link :to="{ name: 'orders' }" class="nav-link">
+            <span class="nav-text">Orders</span>
+          </router-link>
+        </div>
+
+        <!-- Management -->
+        <div class="nav-section">
+          <div class="nav-section-header">Management</div>
+          <router-link :to="{ name: 'categories' }" class="nav-link">
+            <span class="nav-text">Categories</span>
+          </router-link>
+          <router-link :to="{ name: 'vendors' }" class="nav-link">
+            <span class="nav-text">Vendors</span>
+          </router-link>
+          <router-link :to="{ name: 'statistics' }" class="nav-link">
+            <span class="nav-text">Analytics</span>
+          </router-link>
+        </div>
+
+        <!-- System Tools -->
+        <div class="nav-section">
+          <div 
+            class="nav-section-header collapsible-header" 
+            @click="toggleSystemSection"
+          >
+            <span>System</span>
+            <span class="collapse-icon" :class="{ 'collapsed': !isSystemSectionExpanded }">▼</span>
+          </div>
+          <div class="collapsible-content" :class="{ 'collapsed': !isSystemSectionExpanded }">
+            <router-link :to="{ name: 'backup' }" class="nav-link">
+              <span class="nav-text">Backup</span>
+            </router-link>
+            <router-link :to="{ name: 'audit' }" class="nav-link">
+              <span class="nav-text">Audit Logs</span>
+            </router-link>
+            <router-link :to="{ name: 'notifications' }" class="nav-link">
+              <span class="nav-text">Notifications</span>
+              <span v-if="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
+            </router-link>
+          </div>
+        </div>
+
+        <!-- Development Tools -->
+        <div v-if="environment === 'development'" class="nav-section dev-section">
+          <div class="nav-section-header">Development</div>
+          <router-link :to="{ name: 'error-monitoring' }" class="nav-link dev-only">
+            <span class="nav-text">Error Monitor</span>
+          </router-link>
+        </div>
       </div>
 
       <div class="sidebar-bottom">
@@ -52,6 +100,7 @@
 
 <script>
 import ToastNotification from '@/components/Toast.vue'
+import notificationHistoryService from '@/services/notificationHistoryService.js'
 
 export default {
   name: 'App',
@@ -60,16 +109,15 @@ export default {
   },
   data() {
     return {
-      isSidebarOpen: false,
       isLoading: false,
       toasts: [],
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
+      isSystemSectionExpanded: false, // Collapsed by default
+      unreadNotificationCount: 0,
+      notificationService: notificationHistoryService
     }
   },
   methods: {
-    toggleSidebar() {
-      this.isSidebarOpen = !this.isSidebarOpen
-    },
     showToast(message, type = 'info') {
       const id = Date.now()
       this.toasts.push({ id, message, type })
@@ -90,6 +138,35 @@ export default {
     },
     stopFireworks() {
       // Fireworks cleanup code will be added here
+    },
+    toggleSystemSection() {
+      this.isSystemSectionExpanded = !this.isSystemSectionExpanded
+      // Save preference to localStorage
+      localStorage.setItem('systemSectionExpanded', this.isSystemSectionExpanded.toString())
+    },
+    async fetchUnreadNotificationCount() {
+      try {
+        const stats = await this.notificationService.getNotificationStatistics()
+        this.unreadNotificationCount = stats.unreadCount || 0
+      } catch (error) {
+        console.warn('Failed to fetch unread notification count:', error)
+        this.unreadNotificationCount = 0
+      }
+    },
+    startNotificationPolling() {
+      // Fetch immediately
+      this.fetchUnreadNotificationCount()
+      
+      // Then poll every 30 seconds
+      this.notificationPollingInterval = setInterval(() => {
+        this.fetchUnreadNotificationCount()
+      }, 30000)
+    },
+    stopNotificationPolling() {
+      if (this.notificationPollingInterval) {
+        clearInterval(this.notificationPollingInterval)
+        this.notificationPollingInterval = null
+      }
     }
   },
   created() {
@@ -97,6 +174,36 @@ export default {
     window.showToast = this.showToast
     window.showLoader = this.showLoader
     window.hideLoader = this.hideLoader
+    
+    // Development helper: expose notification testing function
+    if (this.environment === 'development') {
+      window.testNotifications = () => {
+        this.showToast('Test success notification', 'success')
+        setTimeout(() => this.showToast('Test error notification', 'error'), 500)
+        setTimeout(() => this.showToast('Test warning notification', 'warning'), 1000)
+        setTimeout(() => this.showToast('Test info notification', 'info'), 1500)
+      }
+    }
+    
+    // System section stays collapsed by default
+    // Remove any previous localStorage preference to ensure it starts collapsed
+    localStorage.removeItem('systemSectionExpanded')
+    this.isSystemSectionExpanded = false
+    
+    // Start notification polling
+    this.startNotificationPolling()
+  },
+  mounted() {
+    // Listen for route changes to update notification count
+    this.$router.afterEach(() => {
+      // Slight delay to allow for any notification updates from the new page
+      setTimeout(() => {
+        this.fetchUnreadNotificationCount()
+      }, 500)
+    })
+  },
+  beforeUnmount() {
+    this.stopNotificationPolling()
   }
 }
 </script>
@@ -126,6 +233,9 @@ export default {
 .sidebar-header {
   padding: 1.5rem;
   border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .nav-brand {
@@ -135,17 +245,101 @@ export default {
   color: #1a1f36;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-}
-
-.logo-icon {
-  font-size: 1.5rem;
 }
 
 .nav-menu {
-  padding: 1.5rem 1rem;
+  padding: 1rem;
   flex: 1;
   overflow-y: auto;
+}
+
+.nav-section {
+  margin-bottom: 1.5rem;
+  transition: margin-bottom 0.3s ease;
+}
+
+.nav-section:last-child {
+  margin-bottom: 0;
+}
+
+/* When System section is collapsed, reduce bottom margin */
+.nav-section:has(.collapsible-content.collapsed) {
+  margin-bottom: 0.75rem;
+}
+
+.nav-section-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+  margin-bottom: 0.5rem;
+  padding: 0 1rem;
+}
+
+/* Collapsible System Section */
+.collapsible-header {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: color 0.2s ease;
+  user-select: none;
+}
+
+.collapsible-header:hover {
+  color: #6b7280;
+}
+
+.collapse-icon {
+  font-size: 0.625rem;
+  transition: transform 0.2s ease;
+  margin-right: 0.25rem;
+}
+
+.collapse-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+.collapsible-content {
+  max-height: 500px;
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  opacity: 1;
+}
+
+.collapsible-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: 0;
+}
+
+/* Notification Badge */
+.notification-badge {
+  background: #10b981;
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 9999px;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  animation: subtle-pulse 2s infinite;
+}
+
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
 }
 
 .nav-link {
@@ -160,24 +354,33 @@ export default {
   transition: all 0.2s;
 }
 
+.nav-text {
+  flex: 1;
+}
+
 .nav-link:hover {
   background: #f8f9fe;
   color: #1a1f36;
   font-weight: 500;
+  transform: translateX(2px);
 }
 
 .nav-link.router-link-active {
-  background: #f1f5f9;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
   color: #1a1f36;
   font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dev-section {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 1rem;
+  margin-top: 1rem;
 }
 
 .nav-link.dev-only {
   color: #f59e0b;
   font-size: 0.875rem;
-  border-top: 1px solid #e5e7eb;
-  margin-top: 0.5rem;
-  padding-top: 0.75rem;
 }
 
 .nav-link.dev-only:hover {
