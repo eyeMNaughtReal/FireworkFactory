@@ -3,10 +3,9 @@ import {
   getDocs, 
   doc, 
   setDoc, 
-  deleteDoc,
   writeBatch 
 } from 'firebase/firestore';
-import { db } from './config.js';
+import { db } from '../firebase/config.js';
 
 class BackupService {
   constructor() {
@@ -40,7 +39,7 @@ class BackupService {
       };
 
       // Backup each collection
-      for (const [key, collectionName] of Object.entries(this.collections)) {
+      for (const collectionName of Object.values(this.collections)) {
         console.log(`Backing up ${collectionName}...`);
         const collectionData = await this.backupCollection(collectionName);
         backup.data[collectionName] = collectionData;
@@ -192,6 +191,7 @@ class BackupService {
         let restoredCount = 0;
 
         for (const docData of documents) {
+          // eslint-disable-next-line no-unused-vars
           const { id, _backup_timestamp, ...cleanData } = docData;
           
           // Add restoration metadata
@@ -386,7 +386,7 @@ class BackupService {
       let totalDocuments = 0;
       const collectionSizes = {};
 
-      for (const [key, collectionName] of Object.entries(this.collections)) {
+      for (const collectionName of Object.values(this.collections)) {
         const querySnapshot = await getDocs(collection(db, collectionName));
         const count = querySnapshot.size;
         collectionSizes[collectionName] = count;

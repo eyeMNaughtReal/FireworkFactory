@@ -281,7 +281,7 @@ export default {
       isCreatingBackup.value = true
       try {
         toast.info('Creating backup...', 3000)
-        const backup = await backupService.createFullBackup()
+        await backupService.createFullBackup()
         
         toast.success('Backup created successfully!')
         await loadData() // Refresh data
@@ -382,12 +382,10 @@ export default {
       }
     }
 
-    const deleteBackup = async (backupId) => {
-      if (!confirm('Are you sure you want to delete this backup? This action cannot be undone.')) return
-      
+    const deleteBackup = async () => {
+      // Note: In a production app, you'd implement deleteBackup in the service
       isDeletingBackup.value = true
       try {
-        // Note: In a production app, you'd implement deleteBackup in the service
         toast.warning('Backup deletion not yet implemented')
         // await backupService.deleteBackup(backupId)
         // toast.success('Backup deleted successfully')
