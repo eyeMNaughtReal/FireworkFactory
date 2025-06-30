@@ -130,8 +130,35 @@ class AuthService {
       if (userDoc.exists()) {
         this.userProfile = userDoc.data();
       } else {
-        console.warn('User profile not found in Firestore');
-        this.userProfile = null;
+        // Auto-create user profile if missing
+        if (this.currentUser && this.currentUser.uid === uid) {
+          const user = this.currentUser;
+          const displayName = user.displayName || '';
+          const [firstName = '', lastName = ''] = displayName.split(' ');
+          const userProfile = {
+            uid: user.uid,
+            email: user.email,
+            firstName,
+            lastName,
+            displayName: displayName,
+            role: 'user',
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+            isActive: true,
+            emailVerified: user.emailVerified,
+            preferences: {
+              theme: 'light',
+              notifications: true,
+              language: 'en'
+            }
+          };
+          await setDoc(doc(db, 'users', user.uid), userProfile);
+          this.userProfile = userProfile;
+          console.log('Auto-created missing user profile for', user.uid);
+        } else {
+          console.warn('User profile not found in Firestore');
+          this.userProfile = null;
+        }
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
