@@ -75,7 +75,7 @@
             style="display: none"
           >
           <button 
-            class="btn-file-upload" 
+            class="btn-primary" 
             @click="$refs.fileInput.click()"
             :disabled="isRestoring"
           >
