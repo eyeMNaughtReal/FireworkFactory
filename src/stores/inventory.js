@@ -247,6 +247,28 @@ export const useInventoryStore = defineStore('inventory', {
     },
     
     // Products CRUD (simplified structure)
+    unsubscribeProducts: null,
+    async subscribeToProducts() {
+      if (this.unsubscribeProducts) {
+        this.unsubscribeProducts();
+      }
+      this.loading.products = true;
+      this.clearError('subscribeToProducts');
+      try {
+        this.unsubscribeProducts = firebaseService.subscribeToCollection(
+          firebaseService.collections.PRODUCTS,
+          (products) => {
+            this.products = products;
+            this.loading.products = false;
+          }
+        );
+      } catch (error) {
+        this.setError('subscribeToProducts', error);
+        this.loading.products = false;
+        throw error;
+      }
+    },
+    
     async fetchProducts() {
       this.loading.products = true
       this.clearError('fetchProducts')
