@@ -79,6 +79,7 @@
             @click="$refs.fileInput.click()"
             :disabled="isRestoring"
           >
+            <!-- Folder icon for better UX -->
             <span class="upload-icon">📁</span>
             {{ isRestoring ? 'Restoring...' : 'Select Backup File' }}
           </button>
