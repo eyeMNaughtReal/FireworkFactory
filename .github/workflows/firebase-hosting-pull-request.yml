@@ -3,10 +3,11 @@
 
 # DISABLED: Using deploy.yml instead
 name: Deploy to Firebase Hosting on PR
+# Disabled by setting a non-existent branch
 on:
   pull_request:
     branches:
-      - disabled
+      - disabled-workflow
 permissions:
   checks: write
   contents: read

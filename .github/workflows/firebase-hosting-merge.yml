@@ -3,10 +3,11 @@
 
 # DISABLED: Using deploy.yml instead
 name: Deploy to Firebase Hosting on merge
+# Disabled by setting a non-existent branch
 on:
   push:
     branches:
-      - disabled-main
+      - disabled-workflow
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
