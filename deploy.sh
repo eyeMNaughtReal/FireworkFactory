@@ -5,6 +5,10 @@ set -e
 
 echo "📦 Starting deployment process..."
 
+# Increment version number
+echo "🔄 Incrementing version number..."
+node ./scripts/increment-version.js
+
 # Build the application
 echo "🔨 Building the application..."
 npm run build
