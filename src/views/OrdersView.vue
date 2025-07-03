@@ -43,6 +43,7 @@
             <th>Items</th>
             <th>Total</th>
             <th>Status</th>
+            <th>Season</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -63,9 +64,11 @@
               >
                 {{ formatStatus(order.status) }}
               </span>
+            </td>
+            <td>
               <span 
                 v-if="order.season" 
-                class="badge season-badge ml-1" 
+                class="badge season-badge" 
                 :class="{
                   'season-july-4th badge-red': order.season === 'july-4th',
                   'season-new-years badge-gold': order.season === 'new-years'
@@ -73,6 +76,7 @@
               >
                 {{ getSeasonLabel(order.season) }}
               </span>
+              <span v-else class="text-muted">General Stock</span>
             </td>
             <td>
               <div class="dropdown" :class="{ 'dropdown-open': openDropdown === order.id }">
@@ -1129,6 +1133,11 @@ textarea {
 .badge-gold {
   background: #fffae5;
   color: #b45309;
+}
+
+.text-muted {
+  color: #6b7280;
+  font-size: 0.95em;
 }
 
 @media (max-width: 768px) {
