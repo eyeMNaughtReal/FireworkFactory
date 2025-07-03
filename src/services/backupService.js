@@ -3,9 +3,11 @@ import {
   getDocs, 
   doc, 
   setDoc, 
-  writeBatch 
+  writeBatch,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase/config.js';
+import auditService from './auditService.js';
 
 class BackupService {
   constructor() {
@@ -16,7 +18,7 @@ class BackupService {
       ORDERS: 'orders',
       INVENTORY: 'inventory',
       NOTIFICATIONS: 'notifications',
-      AUDIT_LOG: 'audit_log',
+      AUDIT_LOG: 'audit_logs',
       REPORTS: 'reports'
     };
   }
@@ -90,6 +92,15 @@ class BackupService {
       const backupId = `backup_${Date.now()}`;
       const backupRef = doc(db, 'backups', backupId);
       await setDoc(backupRef, metadata);
+      
+      // Log the backup creation to audit trail
+      await auditService.logCreate('backups', backupId, metadata, {
+        action: 'backup_created',
+        description: `Full backup created with ${metadata.collections?.length || 0} collections`,
+        collectionsBackedUp: metadata.collections,
+        timestamp: metadata.createdAt
+      });
+      
       console.log(`Backup metadata stored with ID: ${backupId}`);
       return backupId;
     } catch (error) {
@@ -119,7 +130,31 @@ class BackupService {
       
       return backups;
     } catch (error) {
-      console.error('Error fetching backup history:', error);
+      console.error('Error getting backup history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a backup by ID
+   * @param {string} backupId - ID of the backup to delete
+   * @returns {Promise<void>}
+   */
+  async deleteBackup(backupId) {
+    try {
+      const backupRef = doc(db, 'backups', backupId);
+      await deleteDoc(backupRef);
+      
+      // Log the backup deletion to audit trail
+      await auditService.logDelete('backups', backupId, null, {
+        action: 'backup_deleted',
+        description: `Backup ${backupId} was deleted`,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`Backup ${backupId} deleted successfully`);
+    } catch (error) {
+      console.error(`Error deleting backup ${backupId}:`, error);
       throw error;
     }
   }
@@ -251,16 +286,26 @@ class BackupService {
    */
   async logRestoration(backupMetadata, restoredCollections) {
     try {
-      const restorationLog = {
-        type: 'data_restoration',
-        restoredAt: new Date().toISOString(),
-        sourceBackup: backupMetadata,
-        restoredCollections: restoredCollections,
-        totalDocuments: restoredCollections.reduce((sum, col) => sum + col.documentsRestored, 0)
-      };
-
-      const logRef = doc(db, 'audit_log', `restoration_${Date.now()}`);
-      await setDoc(logRef, restorationLog);
+      const totalDocuments = restoredCollections.reduce((sum, col) => sum + col.documentsRestored, 0);
+      
+      // Log the backup restoration to audit trail using the audit service
+      await auditService.logAction({
+        action: 'restore',
+        collection: 'backups',
+        documentId: null,
+        data: {
+          sourceBackup: backupMetadata,
+          restoredCollections: restoredCollections,
+          totalDocuments: totalDocuments
+        },
+        metadata: {
+          action: 'backup_restored',
+          description: `Data restored from backup: ${totalDocuments} documents across ${restoredCollections.length} collections`,
+          restorationDetails: restoredCollections,
+          sourceBackupCreatedAt: backupMetadata?.createdAt,
+          timestamp: new Date().toISOString()
+        }
+      });
       
       console.log('Restoration logged successfully');
     } catch (error) {

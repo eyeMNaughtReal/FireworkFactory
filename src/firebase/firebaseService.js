@@ -9,6 +9,7 @@ import {
   query, 
   orderBy, 
   where,
+  limit,
   onSnapshot,
   serverTimestamp 
 } from 'firebase/firestore';
@@ -27,7 +28,7 @@ class FirebaseService {
       ORDERS: 'orders',
       INVENTORY: 'inventory',
       NOTIFICATIONS: 'notifications',
-      AUDIT_LOG: 'audit_log',
+      AUDIT_LOG: 'audit_logs',
       REPORTS: 'reports'
     };
   }
@@ -130,7 +131,7 @@ class FirebaseService {
     }
   }
 
-  async addDocument(collectionName, data) {
+  async addDocument(collectionName, data, metadata = null) {
     try {
       const docData = {
         ...data,
@@ -142,8 +143,20 @@ class FirebaseService {
       // Clear cache to force refresh
       this.clearCache(`cached_${collectionName}`);
       
-      // Log audit entry
-      await this.logAuditEntry(collectionName, 'create', docRef.id, data);
+      // Enhance metadata with collection-specific information
+      const enhancedMetadata = { 
+        ...metadata,
+        documentType: collectionName,
+        operation: 'create',
+      };
+      
+      // For inventory items, add product info
+      if (collectionName === this.collections.INVENTORY && data.productId) {
+        enhancedMetadata.productId = data.productId;
+      }
+      
+      // Log audit entry with enhanced metadata
+      await this.logAuditEntry(collectionName, 'create', docRef.id, data, enhancedMetadata);
       
       // Fetch the document again to get resolved timestamps
       const snap = await getDoc(docRef);
@@ -154,7 +167,7 @@ class FirebaseService {
     }
   }
 
-  async updateDocument(collectionName, docId, data) {
+  async updateDocument(collectionName, docId, data, metadata = null) {
     try {
       const docRef = doc(db, collectionName, docId);
       const docData = {
@@ -162,13 +175,47 @@ class FirebaseService {
         updatedAt: serverTimestamp()
       };
       
+      // Get the current document data before update (if needed for audit trail)
+      let previousData = null;
+      if (!metadata?.previousData) {
+        try {
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            previousData = docSnap.data();
+          }
+        } catch (err) {
+          console.warn('Could not get previous data for audit log:', err);
+        }
+      }
+      
       await updateDoc(docRef, docData);
       
       // Clear cache to force refresh
       this.clearCache(`cached_${collectionName}`);
       
-      // Log audit entry
-      await this.logAuditEntry(collectionName, 'update', docId, data);
+      // Enhance metadata
+      const enhancedMetadata = { 
+        ...metadata,
+        documentType: collectionName,
+        operation: 'update',
+      };
+      
+      // Add previous data to metadata if we retrieved it and it's not already there
+      if (previousData && !enhancedMetadata.previousData) {
+        enhancedMetadata.previousData = previousData;
+      }
+      
+      // For inventory updates, add specific information
+      if (collectionName === this.collections.INVENTORY) {
+        if (previousData?.productId) {
+          enhancedMetadata.productId = previousData.productId;
+        } else if (data.productId) {
+          enhancedMetadata.productId = data.productId;
+        }
+      }
+      
+      // Log audit entry with enhanced metadata
+      await this.logAuditEntry(collectionName, 'update', docId, data, enhancedMetadata);
       
       return { id: docId, ...docData };
     } catch (error) {
@@ -196,21 +243,28 @@ class FirebaseService {
   }
 
   // Audit logging
-  async logAuditEntry(collectionName, action, documentId, details = null) {
+  async logAuditEntry(collectionName, action, documentId, details = null, customMetadata = null) {
     try {
+      const metadata = {
+        userId: 'system', // TODO: Replace with actual user ID when auth is implemented
+        source: 'firebase_service',
+        timestamp: new Date().toISOString(),
+        ...customMetadata
+      };
+      
       await auditService.logAction({
         action,
         collection: collectionName,
         documentId,
         data: details,
-        metadata: {
-          userId: 'system', // TODO: Replace with actual user ID when auth is implemented
-          source: 'firebase_service'
-        }
+        metadata
       });
+      
+      return true;
     } catch (error) {
       console.warn('Failed to log audit entry:', error);
       // Don't throw error for audit logging failures
+      return false;
     }
   }
 
@@ -339,7 +393,7 @@ class FirebaseService {
     }
   }
 
-  async getAuditLogs(collectionFilter = null, limit = 100) {
+  async getAuditLogs(collectionFilter = null, limitCount = 100) {
     try {
       let q = collection(db, this.collections.AUDIT_LOG);
       
@@ -347,7 +401,7 @@ class FirebaseService {
         q = query(q, where('collection', '==', collectionFilter));
       }
       
-      q = query(q, orderBy('timestamp', 'desc'), limit(limit));
+      q = query(q, orderBy('timestamp', 'desc'), limit(limitCount));
       
       const querySnapshot = await getDocs(q);
       const logs = [];

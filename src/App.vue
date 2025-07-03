@@ -1,5 +1,11 @@
 <template>
   <div id="app">
+    <!-- Hamburger menu for mobile/tablet -->
+    <button class="hamburger" @click="toggleSidebar" aria-label="Open navigation" v-if="authStore.isAuthenticated">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
     <!-- Loading Screen for Auth Initialization -->
     <div v-if="!authStore.isInitialized" class="auth-loading">
       <div class="auth-loading-content">
@@ -10,9 +16,9 @@
 
     <!-- Main App Content -->
     <div v-else-if="authStore.isAuthenticated" class="app-content">
-      <nav class="sidebar">
+      <nav :class="['sidebar', { open: isSidebarOpen }]">
         <div class="sidebar-header">
-          <router-link :to="{ name: 'home' }" class="nav-brand">
+          <router-link :to="{ name: 'home' }" class="nav-brand" @click="handleNavClick">
             <span class="logo-text">Firework Factory</span>
           </router-link>
         </div>
@@ -29,7 +35,7 @@
           </div>
           
           <div class="user-menu" :class="{ 'expanded': isUserMenuExpanded }">
-            <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="isUserMenuExpanded = false">
+            <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="handleNavClick; isUserMenuExpanded = false">
               👤 Profile
             </router-link>
             <button @click="handleSignOut" class="user-menu-item sign-out">
@@ -41,7 +47,7 @@
         <div class="nav-menu">
           <!-- Dashboard -->
           <div class="nav-section">
-            <router-link :to="{ name: 'home' }" class="nav-link" exact>
+            <router-link :to="{ name: 'home' }" class="nav-link" exact @click="handleNavClick">
               <span class="nav-text">Dashboard</span>
             </router-link>
           </div>
@@ -49,33 +55,33 @@
           <!-- Core Operations -->
           <div class="nav-section">
             <div class="nav-section-header">Operations</div>
-            <router-link :to="{ name: 'products' }" class="nav-link">
+            <router-link :to="{ name: 'products' }" class="nav-link" @click="handleNavClick">
               <span class="nav-text">Products</span>
             </router-link>
-            <router-link :to="{ name: 'inventory' }" class="nav-link">
+            <router-link :to="{ name: 'inventory' }" class="nav-link" @click="handleNavClick">
               <span class="nav-text">Inventory</span>
             </router-link>
-            <router-link :to="{ name: 'orders' }" class="nav-link">
+            <router-link :to="{ name: 'orders' }" class="nav-link" @click="handleNavClick">
               <span class="nav-text">Orders</span>
             </router-link>
           </div>
 
-          <!-- Management -->
-          <div class="nav-section">
+          <!-- Management (hide on mobile) -->
+          <div class="nav-section management-section">
             <div class="nav-section-header">Management</div>
-            <router-link :to="{ name: 'categories' }" class="nav-link">
+            <router-link :to="{ name: 'categories' }" class="nav-link" @click="handleNavClick">
               <span class="nav-text">Categories</span>
             </router-link>
-            <router-link :to="{ name: 'vendors' }" class="nav-link">
+            <router-link :to="{ name: 'vendors' }" class="nav-link" @click="handleNavClick">
               <span class="nav-text">Vendors</span>
             </router-link>
-            <router-link :to="{ name: 'statistics' }" class="nav-link">
+            <router-link :to="{ name: 'statistics' }" class="nav-link" @click="handleNavClick">
               <span class="nav-text">Analytics</span>
             </router-link>
           </div>
 
-          <!-- System Tools (Admin/Manager Only) -->
-          <div v-if="authStore.hasPermission('write')" class="nav-section">
+          <!-- System Tools (Admin/Manager Only, hide on mobile) -->
+          <div v-if="authStore.hasPermission('write')" class="nav-section system-section">
             <div 
               class="nav-section-header collapsible-header" 
               @click="toggleSystemSection"
@@ -84,23 +90,23 @@
               <span class="collapse-icon" :class="{ 'collapsed': !isSystemSectionExpanded }">▼</span>
             </div>
             <div class="collapsible-content" :class="{ 'collapsed': !isSystemSectionExpanded }">
-              <router-link v-if="authStore.isAdmin" :to="{ name: 'backup' }" class="nav-link">
+              <router-link v-if="authStore.isAdmin" :to="{ name: 'backup' }" class="nav-link" @click="handleNavClick">
                 <span class="nav-text">Backup</span>
               </router-link>
-              <router-link v-if="authStore.isAdmin" :to="{ name: 'audit' }" class="nav-link">
+              <router-link v-if="authStore.isAdmin" :to="{ name: 'audit' }" class="nav-link" @click="handleNavClick">
                 <span class="nav-text">Audit Logs</span>
               </router-link>
-              <router-link :to="{ name: 'notifications' }" class="nav-link">
+              <router-link :to="{ name: 'notifications' }" class="nav-link" @click="handleNavClick">
                 <span class="nav-text">Notifications</span>
                 <span v-if="unreadNotificationCount > 0" class="notification-badge">{{ unreadNotificationCount }}</span>
               </router-link>
             </div>
           </div>
 
-          <!-- Development Tools -->
+          <!-- Development Tools (hide on mobile) -->
           <div v-if="environment === 'development' && authStore.isAdmin" class="nav-section dev-section">
             <div class="nav-section-header">Development</div>
-            <router-link :to="{ name: 'error-monitoring' }" class="nav-link dev-only">
+            <router-link :to="{ name: 'error-monitoring' }" class="nav-link dev-only" @click="handleNavClick">
               <span class="nav-text">Error Monitor</span>
             </router-link>
           </div>
@@ -109,6 +115,9 @@
         <div class="sidebar-bottom">
           <div class="environment-badge">
             {{ environment }}
+          </div>
+          <div class="sidebar-version">
+            v{{ appVersion }}
           </div>
         </div>
       </nav>
@@ -132,11 +141,6 @@
 
     <!-- Toast Component -->
     <ToastNotification />
-
-    <footer class="app-footer">
-      <span>Firework Factory &copy; 2025</span>
-      <span class="app-version">v{{ appVersion }}</span>
-    </footer>
   </div>
 </template>
 
@@ -158,6 +162,7 @@ export default {
       environment: process.env.NODE_ENV,
       isSystemSectionExpanded: false, // Collapsed by default
       isUserMenuExpanded: false,
+      isSidebarOpen: false, // For mobile/tablet
       unreadNotificationCount: 0,
       notificationService: notificationHistoryService,
       appVersion: APP_VERSION
@@ -172,11 +177,7 @@ export default {
     // Initialize authentication
     await this.authStore.initializeAuth()
     
-    // Load saved preferences
-    const savedSystemSection = localStorage.getItem('systemSectionExpanded')
-    if (savedSystemSection !== null) {
-      this.isSystemSectionExpanded = savedSystemSection === 'true'
-    }
+    // System section preferences are loaded in created() hook
 
     // Set up notification updates if authenticated
     if (this.authStore.isAuthenticated) {
@@ -228,16 +229,48 @@ export default {
     },
     toggleSystemSection() {
       this.isSystemSectionExpanded = !this.isSystemSectionExpanded
-      // Save preference to localStorage
-      localStorage.setItem('systemSectionExpanded', this.isSystemSectionExpanded.toString())
+      // Force a CSS reflow to ensure the transition works correctly
+      // This helps with the visual glitch when toggling
+      window.requestAnimationFrame(() => {
+        const content = document.querySelector('.collapsible-content')
+        if (content) {
+          // Force reflow with getComputedStyle to ensure smooth transitions
+          window.getComputedStyle(content).opacity
+          // Apply additional style adjustments if needed
+          if (this.isSystemSectionExpanded) {
+            content.style.pointerEvents = 'auto'
+          } else {
+            // Small delay to ensure animation completes before disabling pointer events
+            setTimeout(() => {
+              if (!this.isSystemSectionExpanded) {
+                content.style.pointerEvents = 'none'
+              }
+            }, 300)
+          }
+        }
+      })
     },
     toggleUserMenu() {
       this.isUserMenuExpanded = !this.isUserMenuExpanded
+    },
+    toggleSidebar() {
+      this.isSidebarOpen = !this.isSidebarOpen
+      // Prevent background scroll when sidebar is open on mobile
+      if (this.isSidebarOpen && window.innerWidth <= 768) {
+        document.body.style.overflow = 'hidden'
+      } else {
+        document.body.style.overflow = ''
+      }
     },
     handleClickOutside(event) {
       // Close user menu if clicking outside
       if (!event.target.closest('.user-section')) {
         this.isUserMenuExpanded = false
+      }
+      // Close sidebar if clicking outside on mobile
+      if (this.isSidebarOpen && window.innerWidth <= 768 && !event.target.closest('.sidebar') && !event.target.closest('.hamburger')) {
+        this.isSidebarOpen = false
+        document.body.style.overflow = ''
       }
     },
     async handleSignOut() {
@@ -275,7 +308,14 @@ export default {
         clearInterval(this.notificationPollingInterval)
         this.notificationPollingInterval = null
       }
-    }
+    },
+    handleNavClick() {
+      // Close sidebar on mobile after navigation
+      if (window.innerWidth <= 768) {
+        this.isSidebarOpen = false;
+        document.body.style.overflow = '';
+      }
+    },
   },
   created() {
     // Expose toast method globally
@@ -292,10 +332,7 @@ export default {
         setTimeout(() => this.showToast('Test info notification', 'info'), 1500)
       }
     }
-    
-    // System section stays collapsed by default
-    // Remove any previous localStorage preference to ensure it starts collapsed
-    localStorage.removeItem('systemSectionExpanded')
+    // Always default to collapsed; no localStorage
     this.isSystemSectionExpanded = false
   }
 }
@@ -321,6 +358,12 @@ export default {
   top: 0;
   display: flex;
   flex-direction: column;
+  transition: transform 0.3s ease;
+  transform: translateX(0);
+}
+
+.sidebar.open {
+  transform: translateX(0);
 }
 
 .sidebar-header {
@@ -397,14 +440,19 @@ export default {
 .collapsible-content {
   max-height: 500px;
   overflow: hidden;
-  transition: max-height 0.3s ease, opacity 0.2s ease;
+  transition: max-height 0.3s ease, opacity 0.2s ease, margin-bottom 0.3s ease;
   opacity: 1;
+  margin-bottom: 0.5rem;
+  will-change: max-height, opacity; /* Optimize for animations */
 }
 
 .collapsible-content.collapsed {
   max-height: 0;
   opacity: 0;
   margin-bottom: 0;
+  pointer-events: none; /* Prevent clicks on hidden items */
+  visibility: hidden; /* Further ensure no interaction with collapsed items */
+  transition: max-height 0.3s ease, opacity 0.2s ease, margin-bottom 0.3s ease, visibility 0s linear 0.3s;
 }
 
 /* Notification Badge */
@@ -495,6 +543,15 @@ export default {
   font-size: 0.75rem;
   font-weight: 500;
   text-transform: capitalize;
+}
+
+.sidebar-version {
+  margin-top: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  text-align: center;
+  letter-spacing: 0.05em;
+  font-weight: 500;
 }
 
 /* Main Content Area */
@@ -1164,7 +1221,7 @@ h3 {
 .main-content {
   flex: 1;
   margin-left: 280px;
-  padding: 2rem;
+  padding: 2rem 2rem calc(4rem + 20px) 2rem; /* Added padding at bottom for footer */
   background: #f9fafb;
   min-height: 100vh;
 }
@@ -1175,25 +1232,28 @@ h3 {
   padding: 0;
 }
 
-/* Footer */
+/* Remove the footer styles and add sidebar-version styles */
 .app-footer {
-  width: 100%;
-  text-align: center;
-  padding: 1rem 0;
-  background: #f3f4f6;
-  color: #6b7280;
-  font-size: 0.95rem;
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  z-index: 100;
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
+  display: none !important;
 }
-
-.app-version {
-  font-weight: bold;
-  color: #6366f1;
+.sidebar-version {
+  margin-top: 0.5rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  text-align: center;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 220px;
+  }
+  .main-content {
+    margin-left: 220px;
+    padding: 1.5rem 1rem 4rem 1rem;
+  }
+  .toast-container {
+    margin-left: 220px;
+  }
 }
 </style>
