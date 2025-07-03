@@ -15,11 +15,9 @@ npm run build
 
 # Deploy to Firebase Hosting
 echo "🚀 Deploying to Firebase Hosting..."
-# Make sure we have firebase-tools installed
-if ! command -v firebase &> /dev/null; then
-  echo "Installing firebase-tools globally..."
-  npm install -g firebase-tools
-fi
+# Install compatible version of firebase-tools
+echo "Installing firebase-tools v12.9.1 globally..."
+npm install -g firebase-tools@12.9.1
 firebase deploy --only hosting
 
 echo "✅ Deployment complete! Visit https://firework-factory.web.app to see your changes."
