@@ -34,6 +34,7 @@
             <span class="dropdown-arrow" :class="{ 'expanded': isUserMenuExpanded }">▼</span>
           </div>
           
+          <!-- User Menu -->
           <div class="user-menu" :class="{ 'expanded': isUserMenuExpanded }">
             <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="handleNavClick; isUserMenuExpanded = false">
               👤 Profile

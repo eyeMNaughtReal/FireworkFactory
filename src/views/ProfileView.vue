@@ -166,18 +166,6 @@
       <div class="profile-section">
         <h2>Preferences</h2>
         <form @submit.prevent="updatePreferences" class="profile-form">
-          <div class="form-group">
-            <label for="theme">Theme</label>
-            <select
-              id="theme"
-              v-model="preferencesForm.theme"
-              :disabled="authStore.isLoading"
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="auto">Auto</option>
-            </select>
-          </div>
 
           <div class="form-group">
             <label for="language">Language</label>

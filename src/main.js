@@ -5,6 +5,9 @@ import router from './router'
 import { initializeErrorMonitoring } from './services/errorMonitor'
 import { useAuthStore } from './stores/auth.js'
 
+// Import global styles
+import './styles/common.css'
+
 const app = createApp(App)
 const pinia = createPinia()
 
