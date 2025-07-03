@@ -80,14 +80,14 @@
             </td>
             <td>
               <div class="dropdown" :class="{ 'dropdown-open': openDropdown === order.id }">
-                <button class="dropdown-toggle" @click="toggleDropdown(order.id)">
+                <button class="actions-button" @click="toggleDropdown(order.id)">
                   Actions ▾
                 </button>
-                <div class="dropdown-menu">
-                  <button @click="editOrder(order); closeDropdown()" class="dropdown-item">
+                <div class="actions-menu" v-if="openDropdown === order.id">
+                  <button @click="editOrder(order); closeDropdown()" class="action-item">
                     Edit
                   </button>
-                  <button @click="deleteOrder(order.id); closeDropdown()" class="dropdown-item delete-action">
+                  <button @click="deleteOrder(order.id); closeDropdown()" class="action-item action-delete">
                     Delete
                   </button>
                 </div>
@@ -1033,18 +1033,24 @@ textarea {
   display: inline-block;
 }
 
-.dropdown-toggle {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
+.actions-button {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+  width: 95px;
+  text-align: center;
 }
 
-.dropdown-toggle:hover {
-  background: var(--bg-secondary);
+.actions-button:hover {
+  background: #e5e7eb;
 }
 
 /* Click-based dropdown */
-.dropdown-open .dropdown-menu {
+.dropdown-open .actions-menu {
   display: block;
 }
 
@@ -1057,29 +1063,46 @@ textarea {
   overflow: visible;
 }
 
-.dropdown-menu {
-  background: var(--dropdown-bg);
-  border: 1px solid var(--border-color);
-  box-shadow: 0 4px 12px var(--shadow-color);
+.actions-menu {
+  display: block;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  width: 95px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  overflow: hidden;
 }
 
-.dropdown-item {
-  color: var(--text-primary);
+.action-item {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  border: none;
+  background: none;
+  text-align: center;
+  cursor: pointer;
+  color: #374151;
+  font-size: 14px;
+  transition: all 0.2s ease;
 }
 
-.dropdown-item:hover {
-  background: var(--bg-tertiary);
+.action-item:hover {
+  background: #f3f4f6;
 }
 
-.delete-action {
+.action-item.action-delete {
   background: #dc2626;
   color: white;
 }
 
-.delete-action:hover {
+.action-item.action-delete:hover {
   background: #b91c1c;
 }
-
 .badge {
   display: inline-block;
   padding: 6px 18px;
