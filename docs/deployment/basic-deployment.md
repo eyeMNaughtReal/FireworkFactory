@@ -2,11 +2,11 @@
 
 This document explains how to deploy the Firework Factory application to Firebase Hosting.
 
-## What's New in v0.1.2
-- Professional inventory history timeline showing real inventory changes
-- Enhanced audit logging with improved date formatting
-- Better previous quantity tracking in inventory updates
-- Cleaned up debug logging and improved UI
+## 🆕 What's New in v0.1.2
+- Enhanced build process with optimized asset handling
+- Improved error monitoring during deployment
+- Better cache management for new inventory history features
+
 ## Prerequisites
 
 - Firebase CLI installed and configured

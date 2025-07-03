@@ -213,6 +213,23 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmationModal
+      :is-visible="showDeleteModal"
+      title="Confirm Backup Deletion"
+      :message="'Are you sure you want to delete this backup? This action cannot be undone.'"
+      confirm-text="Delete Backup"
+      cancel-text="Cancel"
+      :item-details="backupToDelete ? {
+        'ID': backupToDelete.id,
+        'Created': formatDate(backupToDelete.createdAt),
+        'Version': backupToDelete.version || 'N/A',
+        'Collections': backupToDelete.collections?.length || '0'
+      } : {}"
+      @confirm="confirmDeleteBackup"
+      @cancel="cancelDeleteBackup"
+    />
   </div>
 </template>
 
@@ -220,12 +237,14 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import backupService from '@/services/backupService'
 import PagePagination from '@/components/PagePagination.vue'
+import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue'
 import { useToast } from '@/components/Toast.vue'
 
 export default {
   name: 'BackupView',
   components: {
-    PagePagination
+    PagePagination,
+    DeleteConfirmationModal
   },
   setup() {
     const toast = useToast()
@@ -382,20 +401,52 @@ export default {
       }
     }
 
-    const deleteBackup = async () => {
-      // Note: In a production app, you'd implement deleteBackup in the service
+    // Backup deletion state
+    const showDeleteModal = ref(false)
+    const backupToDelete = ref(null)
+    
+    const deleteBackup = (backupId) => {
+      if (isDeletingBackup.value) return
+      
+      // Find the backup details to show in the confirmation modal
+      const backup = backupHistory.value.find(b => b.id === backupId)
+      if (backup) {
+        backupToDelete.value = backup
+        showDeleteModal.value = true
+      }
+    }
+    
+    const confirmDeleteBackup = async () => {
+      if (!backupToDelete.value || isDeletingBackup.value) return
+      
       isDeletingBackup.value = true
       try {
-        toast.warning('Backup deletion not yet implemented')
-        // await backupService.deleteBackup(backupId)
-        // toast.success('Backup deleted successfully')
-        // await loadData()
+        toast.info('Deleting backup...', 2000)
+        await backupService.deleteBackup(backupToDelete.value.id)
+        toast.success('Backup deleted successfully')
+        
+        // Reset state
+        showDeleteModal.value = false
+        backupToDelete.value = null
+        
+        // Refresh data with error handling
+        try {
+          await loadData()
+        } catch (loadError) {
+          console.error('Error refreshing data after deletion:', loadError)
+          // Still show success since the delete was successful
+        }
       } catch (error) {
         console.error('Error deleting backup:', error)
         toast.error(`Failed to delete backup: ${error.message}`)
       } finally {
         isDeletingBackup.value = false
       }
+    }
+    
+    const cancelDeleteBackup = () => {
+      showDeleteModal.value = false
+      backupToDelete.value = null
     }
 
     const closeRestoreModal = () => {
@@ -432,11 +483,13 @@ export default {
       isRestoring,
       isDeletingBackup,
       
-      // Modal state
+      // Modal states
       showRestoreModal,
       backupToRestore,
       validationResult,
       replaceExistingData,
+      showDeleteModal,
+      backupToDelete,
       
       // Computed
       paginatedBackups,
@@ -449,6 +502,8 @@ export default {
       handleFileUpload,
       confirmRestore,
       deleteBackup,
+      confirmDeleteBackup,
+      cancelDeleteBackup,
       closeRestoreModal,
       formatDate
     }

@@ -1,23 +1,75 @@
-.DS_Store
+# Dependencies
 node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
 /dist
+/build
 
-
-# local env files
+# Environment Variables
+.env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Log files
+# Log Files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.log
+pglite-debug.log
 
-# Editor directories and files
-.idea
-.vscode
+# Editor Directories and Files
+.idea/
+.vscode/
 *.suo
 *.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Firebase
+.firebase/
+*.cache
+
+# Debug Files
+debug.log
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Build Process
+.eslintcache
+.webpack/
+.next/
+.nuxt/
+.cache/
+
+# Miscellaneous
+*.new
+.env.*.local
 *.njsproj
 *.sln
 *.sw?

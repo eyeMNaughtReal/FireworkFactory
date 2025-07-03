@@ -12,7 +12,7 @@
         type="text" 
         class="search-input"
         v-model="searchQuery"
-        placeholder="Search orders..."
+        placeholder="Search orders, products, vendors, or status..."
       />
       <select v-model="vendorFilter" class="filter-select">
         <option value="">All Vendors</option>
@@ -20,17 +20,16 @@
           {{ vendor.name }}
         </option>
       </select>
-      <select v-model="seasonFilter" class="filter-select">
-        <option value="">All Seasons</option>
-        <option v-for="season in seasons" :key="season.value" :value="season.value">
-          {{ season.label }}
-        </option>
-      </select>
       <select v-model="statusFilter" class="filter-select">
         <option value="">All Statuses</option>
         <option value="ordered">Ordered</option>
         <option value="received">Received</option>
         <option value="cancelled">Cancelled</option>
+      </select>
+      <select v-model="seasonFilter" class="filter-select">
+        <option value="">All Seasons</option>
+        <option value="july-4th">4th of July</option>
+        <option value="new-years">New Year's</option>
       </select>
     </div>
 
@@ -41,7 +40,6 @@
           <tr>
             <th>Order #</th>
             <th>Order Date</th>
-            <th>Season</th>
             <th>Items</th>
             <th>Total</th>
             <th>Status</th>
@@ -52,23 +50,28 @@
           <tr v-for="order in paginatedOrders" :key="order.id">
             <td>{{ order.orderNumber || order.id.slice(-6) }}</td>
             <td>{{ formatDate(order.orderDate || order.createdAt) }}</td>
-            <td>
-              <span class="season-badge" :class="`season-${order.season || 'general'}`">
-                {{ getSeasonLabel(order.season) }}
-              </span>
-            </td>
             <td>{{ order.items?.length || 0 }}</td>
             <td>${{ (order.total || calculateOrderTotal(order)).toFixed(2) }}</td>
             <td>
               <span 
                 class="badge" 
                 :class="{
-                  'badge-warning': order.status === 'pending',
+                  'badge-blue': order.status === 'ordered',
                   'badge-success': order.status === 'received',
                   'badge-danger': order.status === 'cancelled'
                 }"
               >
                 {{ formatStatus(order.status) }}
+              </span>
+              <span 
+                v-if="order.season" 
+                class="badge season-badge ml-1" 
+                :class="{
+                  'season-july-4th badge-red': order.season === 'july-4th',
+                  'season-new-years badge-gold': order.season === 'new-years'
+                }"
+              >
+                {{ getSeasonLabel(order.season) }}
               </span>
             </td>
             <td>
@@ -126,20 +129,19 @@
               />
             </div>
             <div class="form-group">
-              <label>Season</label>
-              <select v-model="formData.season" class="form-input" required>
-                <option value="">Select Season</option>
-                <option v-for="season in seasons" :key="season.value" :value="season.value">
-                  {{ season.label }}
-                </option>
-              </select>
-            </div>
-            <div class="form-group">
               <label>Status</label>
               <select v-model="formData.status" class="form-input">
                 <option value="ordered">Ordered</option>
                 <option value="received">Received</option>
                 <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Season</label>
+              <select v-model="formData.season" class="form-input">
+                <option value="">General Stock</option>
+                <option value="july-4th">4th of July</option>
+                <option value="new-years">New Year's</option>
               </select>
             </div>
           </div>
@@ -258,24 +260,16 @@ export default {
     const showOrderForm = ref(false)
     const submitting = ref(false)
     const errorMsg = ref('')
-    
-    // Filter reactive refs
+    const editingOrder = ref(null)
     const searchQuery = ref('')
     const vendorFilter = ref('')
-    const seasonFilter = ref('')
     const statusFilter = ref('')
-    const editingOrder = ref(null)
+    const seasonFilter = ref('')
     const openDropdown = ref(null)
     
-    // Pagination
+    // Pagination variables
     const currentPage = ref(1)
     const itemsPerPage = ref(10)
-
-    // Define available seasons
-    const seasons = [
-      { value: 'new-years', label: '🎊 New Year\'s' },
-      { value: 'july-4th', label: '🎆 4th of July' }
-    ]
 
     // Get current date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0]
@@ -341,12 +335,6 @@ export default {
       return product ? product.vendorId : ''
     }
 
-    const getSeasonLabel = (seasonValue) => {
-      if (!seasonValue) return 'General Stock'
-      const season = seasons.find(s => s.value === seasonValue)
-      return season ? season.label : 'Unknown Season'
-    }
-
     const orders = computed(() => {
       let result = store.orders
 
@@ -368,9 +356,35 @@ export default {
 
       if (searchQuery.value) {
         const query = searchQuery.value.toLowerCase()
-        result = result.filter(order => 
-          order.orderNumber?.toLowerCase().includes(query)
-        )
+        result = result.filter(order => {
+          // Search in order number or order ID
+          const orderNumberMatch = order.orderNumber?.toLowerCase().includes(query) ||
+                                 order.id?.toLowerCase().includes(query)
+          
+          // Search in product names within the order
+          const productMatch = order.items?.some(item => {
+            const product = products.value.find(p => p.id === item.productId)
+            return product?.name?.toLowerCase().includes(query)
+          })
+          
+          // Search in vendor names of products in the order
+          const vendorMatch = order.items?.some(item => {
+            const product = products.value.find(p => p.id === item.productId)
+            if (product) {
+              const vendor = vendors.value.find(v => v.id === product.vendorId)
+              return vendor?.name?.toLowerCase().includes(query)
+            }
+            return false
+          })
+          
+          // Search in order status
+          const statusMatch = order.status?.toLowerCase().includes(query)
+          
+          // Search in order season if it exists
+          const seasonMatch = order.season?.toLowerCase().includes(query)
+          
+          return orderNumberMatch || productMatch || vendorMatch || statusMatch || seasonMatch
+        })
       }
 
       if (vendorFilter.value) {
@@ -383,15 +397,12 @@ export default {
         )
       }
 
-      if (seasonFilter.value) {
-        result = result.filter(order => {
-          const orderSeason = order.season || 'general'
-          return orderSeason === seasonFilter.value
-        })
-      }
-
       if (statusFilter.value) {
         result = result.filter(order => order.status === statusFilter.value)
+      }
+      
+      if (seasonFilter.value) {
+        result = result.filter(order => order.season === seasonFilter.value)
       }
 
       return result
@@ -588,7 +599,19 @@ export default {
     }
 
     const formatStatus = (status) => {
+      if (!status) return 'Unknown'
       return status.charAt(0).toUpperCase() + status.slice(1)
+    }
+    
+    const getSeasonLabel = (season) => {
+      if (!season) return 'General Stock'
+      
+      const seasonLabels = {
+        'july-4th': '4th of July',
+        'new-years': 'New Year\'s'
+      }
+      
+      return seasonLabels[season] || 'Unknown Season'
     }
 
     const toggleDropdown = (itemId) => {
@@ -621,7 +644,7 @@ export default {
     }
 
     // Reset page when filters change
-    watch([searchQuery, vendorFilter, statusFilter], () => {
+    watch([searchQuery, vendorFilter, statusFilter, seasonFilter], () => {
       currentPage.value = 1
     })
 
@@ -635,9 +658,8 @@ export default {
       formData,
       searchQuery,
       vendorFilter,
-      seasonFilter,
       statusFilter,
-      seasons,
+      seasonFilter,
       products,
       vendors,
       filteredOrders,
@@ -647,7 +669,6 @@ export default {
       orderTotal,
       getVendorName,
       getProductVendorId,
-      getSeasonLabel,
       calculateOrderTotal,
       getUnitInfo,
       calculateTotalItems,
@@ -660,6 +681,7 @@ export default {
       deleteOrder,
       formatDate,
       formatStatus,
+      getSeasonLabel,
       toggleDropdown,
       closeDropdown
     }
@@ -723,34 +745,6 @@ export default {
   color: #dc2626;
 }
 
-/* Season badge styles */
-.season-badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-align: center;
-  min-width: 80px;
-}
-
-.season-new-years { background: #f3e8ff; color: #7c3aed; }
-.season-chinese-new-year { background: #fef3c7; color: #d97706; }
-.season-valentines { background: #fce7f3; color: #be185d; }
-.season-st-patricks { background: #d1fae5; color: #059669; }
-.season-easter { background: #ddd6fe; color: #7c3aed; }
-.season-memorial-day { background: #dbeafe; color: #1d4ed8; }
-.season-july-4th { background: #fee2e2; color: #dc2626; }
-.season-labor-day { background: #f3f4f6; color: #374151; }
-.season-halloween { background: #fed7aa; color: #ea580c; }
-.season-thanksgiving { background: #fef3c7; color: #d97706; }
-.season-christmas { background: #dcfce7; color: #16a34a; }
-.season-diwali { background: #fef3c7; color: #d97706; }
-.season-wedding-season { background: #f9fafb; color: #6b7280; }
-.season-graduation { background: #dbeafe; color: #1d4ed8; }
-.season-general { background: #f3f4f6; color: #6b7280; }
-.season-other { background: #e0e7ff; color: #3730a3; }
-
 .card-text {
   margin-bottom: 16px;
   color: #374151;
@@ -788,7 +782,7 @@ export default {
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
@@ -1102,6 +1096,39 @@ textarea {
 
 .delete-action:hover {
   background: #b91c1c;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 18px;
+  border-radius: 999px;
+  font-size: 0.95em;
+  font-weight: 600;
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+
+.badge-blue {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.badge-success {
+  background: #d1fae5;
+  color: #059669;
+}
+.badge-danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.badge-red {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.badge-gold {
+  background: #fffae5;
+  color: #b45309;
 }
 
 @media (max-width: 768px) {

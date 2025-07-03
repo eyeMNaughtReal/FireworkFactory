@@ -1,16 +1,22 @@
-# 🎆 Firework Factory - Production Ready
+# 🎆 Firework Factory - Production Ready v0.1.2
 
 A **professional, enterprise-ready** Vue.js web application for comprehensive firework store inventory management with advanced analytics, error monitoring, and automated deployment capabilities.
+
+## 🆕 What's New in v0.1.2
+- **📈 Inventory History Timeline**: Professional timeline view showing real inventory changes for each item
+- **🔍 Enhanced Audit Logging**: Improved date formatting and previous quantity tracking
+- **✨ Cleaner UI**: Removed debug output for a more professional interface
+- **📚 Better Documentation**: Updated guides reflecting new features
 
 ## 🚀 Key Features
 
 ### Core Business Functions
 - **📦 Product Management** - Complete CRUD operations with hierarchical unit configuration
-- **📊 Inventory Tracking** - Real-time stock monitoring with intelligent low stock alerts
+- **📊 Inventory Tracking** - Real-time stock monitoring with intelligent low stock alerts and professional history timeline
 - **🛒 Order Processing** - Advanced order management with lifecycle tracking and inventory integration
 - **🏷️ Category Organization** - Streamlined category management with dynamic filtering
 - **🏢 Vendor Management** - Comprehensive supplier relationship management
-- **� Sales Analytics** - Advanced statistics dashboard with top sellers analysis and performance metrics
+- **📈 Sales Analytics** - Advanced statistics dashboard with top sellers analysis and performance metrics
 
 ### Professional Features
 - **🍞 Toast Notifications** - Professional user feedback system across all operations
@@ -18,11 +24,10 @@ A **professional, enterprise-ready** Vue.js web application for comprehensive fi
 - **🚨 Error Monitoring** - Real-time error tracking with Discord/GitHub integration
 - **🚀 Remote Deployment** - Automated CI/CD pipeline with GitHub Actions
 - **📱 Responsive Design** - Professional UI optimized for all devices
-- **🔒 Authentication** - Secure Firebase Authentication with role-based access
-- **💾 Backup System** - Complete data backup and restore functionality
-- **📝 Audit Logging** - Comprehensive activity and change tracking
-- **🔔 Notifications** - Real-time notification system for important events
-- **🚀 Optimized Hosting** - Firebase Hosting with advanced caching and security
+- **🔒 Private Access** - Secure authentication with role-based access control
+- **💾 Data Backup** - Automated backup system with restore capabilities
+- **📊 Audit Logging** - Comprehensive activity tracking and history with professional timeline view
+- **🔔 Smart Notifications** - Intelligent notification system for important events
 - **🔧 Development Tools** - Error monitoring demo interface and testing UI
 
 ### Latest UI/UX Enhancements ✨
@@ -219,6 +224,20 @@ The application comes pre-loaded with sample data including:
 - **Documentation** - Complete setup and usage guides
 - **Error Monitoring** - Real-time error tracking and alerting
 - **Testing Suite** - Comprehensive validation and quality assurance
+
+## 📚 Documentation
+
+All project documentation is now organized in the `/docs` directory:
+
+- [📖 Documentation Index](./docs/README.md) - Start here
+- [🚀 Deployment Guides](./docs/deployment/README.md)
+- [🧪 Testing Documentation](./docs/testing/README.md)
+- [🔒 Authentication Guides](./docs/auth/setup.md)
+
+For quick access to common tasks:
+- [🔧 Basic Deployment](./docs/deployment/basic-deployment.md)
+- [👥 Private Access](./docs/auth/private-access.md)
+- [📊 Deployment Status](./docs/deployment/deployment-summary.md)
 
 ## 📄 License
 
