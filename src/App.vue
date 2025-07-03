@@ -39,9 +39,6 @@
             <router-link :to="{ name: 'profile' }" class="user-menu-item" @click="handleNavClick; isUserMenuExpanded = false">
               👤 Profile
             </router-link>
-            <div class="user-menu-item theme-toggle-wrapper">
-              <ThemeToggle />
-            </div>
             <button @click="handleSignOut" class="user-menu-item sign-out">
               🚪 Sign Out
             </button>
@@ -152,7 +149,6 @@
 import ToastNotification from '@/components/Toast.vue'
 import notificationHistoryService from '@/services/notificationHistoryService.js'
 import { useAuthStore } from '@/stores/auth.js'
-import { useThemeStore } from '@/stores/theme.js'
 import { APP_VERSION } from './version.js'
 
 export default {
