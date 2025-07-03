@@ -702,9 +702,9 @@ export default {
 }
 
 .card {
-  background: white;
+  background: var(--card-bg);
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px var(--shadow-color);
   overflow: hidden;
 }
 
@@ -723,7 +723,7 @@ export default {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-primary);
 }
 
 .card-title .badge {
@@ -751,7 +751,7 @@ export default {
 
 .card-text {
   margin-bottom: 16px;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .card-text p {
@@ -772,12 +772,12 @@ export default {
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--text-muted);
   padding: 4px;
 }
 
 .close-btn:hover {
-  color: #374151;
+  color: var(--text-primary);
 }
 
 .form {
@@ -798,7 +798,7 @@ export default {
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-primary);
 }
 
 .form-group input,
@@ -806,9 +806,11 @@ export default {
 .form-group textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
+  background: var(--input-bg);
+  color: var(--text-primary);
   transition: border-color 0.2s ease;
 }
 
@@ -816,8 +818,8 @@ export default {
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px var(--color-blue-light);
 }
 
 .form-group textarea {
@@ -865,13 +867,13 @@ export default {
 }
 
 .data-table th {
-  background: #f9fafb;
-  color: #374151;
+  background: var(--table-header-bg);
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 .data-table td {
-  color: #374151;
+  color: var(--text-primary);
 }
 
 .table-actions {
@@ -1032,19 +1034,13 @@ textarea {
 }
 
 .dropdown-toggle {
-  background: #f3f4f6;
-  border: 1px solid #e5e7eb;
-  padding: 6px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #374151;
-  width: 95px;
-  text-align: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .dropdown-toggle:hover {
-  background: #e5e7eb;
+  background: var(--bg-secondary);
 }
 
 /* Click-based dropdown */
@@ -1062,35 +1058,17 @@ textarea {
 }
 
 .dropdown-menu {
-  display: none;
-  position: absolute;
-  right: 0;
-  top: 100%;
-  margin-top: 4px;
-  width: 95px;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 9999;
-  overflow: hidden;
+  background: var(--dropdown-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px var(--shadow-color);
 }
 
 .dropdown-item {
-  display: block;
-  width: 100%;
-  padding: 8px 0;
-  border: none;
-  background: none;
-  text-align: center;
-  cursor: pointer;
-  color: #374151;
-  font-size: 14px;
-  transition: all 0.2s ease;
+  color: var(--text-primary);
 }
 
 .dropdown-item:hover {
-  background: #f3f4f6;
+  background: var(--bg-tertiary);
 }
 
 .delete-action {
@@ -1136,7 +1114,7 @@ textarea {
 }
 
 .text-muted {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.95em;
 }
 
