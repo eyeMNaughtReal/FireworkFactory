@@ -20,6 +20,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Increment Version Number
+        run: node ./scripts/increment-version.js
+      
       - name: Generate Version File
         run: node ./scripts/generate-version.js
       
