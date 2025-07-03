@@ -14,18 +14,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install Dependencies
-        run: |
-          echo "Working directory: $(pwd)"
-          # Check if we need to change to the project directory
-          if [ -d "firework-factory" ] && [ -f "firework-factory/package.json" ]; then
-            echo "Found nested project structure, changing to firework-factory directory"
-            cd firework-factory
-          fi
-          npm ci
+        run: npm ci
 
       - name: Increment Version Number
         run: node ./scripts/increment-version.js
@@ -52,7 +45,7 @@ jobs:
           echo "Build output verified successfully."
 
       - name: Install Firebase Tools
-        run: npm install -g firebase-tools
+        run: npm install -g firebase-tools@12.9.1
         
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
