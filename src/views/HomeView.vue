@@ -42,7 +42,9 @@
                   <span class="threshold-value">{{ getProductThreshold(product) }}</span>
                 </td>
                 <td>
-                  <span class="status-badge status-low">Low Stock</span>
+                  <span class="status-badge" :class="getProductStock(product.id) === 0 ? 'status-offline' : 'status-low'">
+                    {{ getProductStock(product.id) === 0 ? 'Out of Stock' : 'Low Stock' }}
+                  </span>
                 </td>
                 <td>
                   <button class="btn-small btn-primary" @click="createOrderForProduct(product)">
@@ -133,7 +135,13 @@ export default {
 
     // Get low stock products based on inventory
     const lowStockProducts = computed(() => {
-      return store.getLowStockProducts()
+      // Show both low and out of stock products
+      return store.products.filter(product => {
+        const stock = getProductStock(product.id)
+        const threshold = getProductThreshold(product)
+        // Show if at or below threshold, including zero
+        return stock <= threshold
+      })
     })
 
     // Get orders with pending/ordered status (not received or cancelled)
@@ -152,7 +160,8 @@ export default {
 
     const getProductStock = (productId) => {
       const inventoryItem = store.inventory.find(inv => inv.productId === productId)
-      return inventoryItem ? inventoryItem.quantity : 0
+      // Always return a number
+      return Number(inventoryItem ? inventoryItem.quantity : 0)
     }
 
     const getProductThreshold = (product) => {
@@ -506,25 +515,3 @@ export default {
   }
 }
 </style>
-  letter-spacing: 0.5px;
-}
-
-.stat-trend {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #4caf50;
-}
-
-.stat-trend.negative {
-  color: #f44336;
-}
-
-.stat-value {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #1e293b;
-  margin: 0;
-}
-
-.stat-subtitle {
-  font-size: 0.9rem;
