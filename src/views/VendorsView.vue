@@ -10,12 +10,12 @@
     </div>
 
     <div class="filters-container">
-      <input 
-        type="text" 
-        class="search-input"
-        v-model="searchQuery"
-        placeholder="Search vendors..."
-      />
+      <select v-model="selectedVendorId" class="filter-select">
+        <option value="">All Vendors</option>
+        <option v-for="vendor in vendors" :key="vendor.id" :value="vendor.id">
+          {{ vendor.name }}
+        </option>
+      </select>
     </div>
 
     <!-- Vendors Table -->
@@ -30,7 +30,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="vendor in paginatedVendors" :key="vendor.id">
+          <tr v-for="vendor in filteredPaginatedVendors" :key="vendor.id">
             <td>{{ vendor.name }}</td>
             <td>
               <button 
@@ -59,7 +59,7 @@
                   <button @click="editVendor(vendor); closeDropdown()" class="dropdown-item">
                     Edit
                   </button>
-                  <button @click="deleteVendor(vendor.id); closeDropdown()" class="dropdown-item delete-action">
+                  <button @click="deleteVendor(vendor); closeDropdown()" class="dropdown-item delete-action">
                     Delete
                   </button>
                 </div>
@@ -70,16 +70,16 @@
       </table>
 
       <!-- Empty State -->
-      <div v-if="filteredVendors.length === 0" class="empty-state">
+      <div v-if="vendors.length === 0" class="empty-state">
         <h3>No vendors yet</h3>
         <p>Click the "Add Vendor" button to create your first vendor.</p>
       </div>
       
       <!-- Pagination -->
       <PagePagination
-        v-if="filteredVendors.length > 0"
+        v-if="vendors.length > 0"
         :current-page="currentPage"
-        :total-items="filteredVendors.length"
+        :total-items="vendors.length"
         :per-page="itemsPerPage"
         @update:page="currentPage = $event"
       />
@@ -119,6 +119,25 @@
         </form>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmationModal
+      :is-visible="showDeleteModal"
+      title="Confirm Vendor Deletion"
+      :message="itemToDelete && itemToDelete.value && getVendorProductCount.value(itemToDelete.value.id) > 0 
+        ? 'This vendor has associated products and cannot be deleted. Please reassign or delete these products first.' 
+        : 'Are you sure you want to delete this vendor? This action cannot be undone.'"
+      confirm-text="Delete Vendor"
+      cancel-text="Cancel"
+      :item-details="itemToDelete && itemToDelete.value ? {
+        'Name': itemToDelete.value.name,
+        'Email': itemToDelete.value.email || 'N/A',
+        'Phone': itemToDelete.value.phone || 'N/A',
+        'Products': getVendorProductCount.value(itemToDelete.value.id) + ' products assigned'
+      } : null"
+      @confirm="confirmDeleteVendor"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -128,10 +147,13 @@ import { useInventoryStore } from '@/stores/inventory'
 import { useRouter } from 'vue-router'
 import PagePagination from '@/components/PagePagination.vue'
 import { useToast } from '@/components/Toast.vue'
+import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue'
+import useDeleteConfirmation from '@/composables/useDeleteConfirmation'
 
 export default {
   components: {
-    PagePagination
+    PagePagination,
+    DeleteConfirmationModal
   },
   name: 'VendorsView',
   setup() {
@@ -143,7 +165,7 @@ export default {
     const errorMsg = ref('')
     const editingVendor = ref(null)
     const openDropdown = ref(null)
-    const searchQuery = ref('')
+    const selectedVendorId = ref('');
     
     // Pagination variables
     const currentPage = ref(1)
@@ -180,25 +202,28 @@ export default {
     })
 
     // Reset page when filters change
-    watch(searchQuery, () => {
+    watch(selectedVendorId, () => {
       currentPage.value = 1
     })
 
-    const filteredVendors = computed(() => {
-      let result = store.vendors
-      
-      if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase()
-        result = result.filter(v => v.name.toLowerCase().includes(query))
-      }
-      
-      return result
-    })
-    
     const paginatedVendors = computed(() => {
-      const startIndex = (currentPage.value - 1) * itemsPerPage.value
-      const endIndex = startIndex + itemsPerPage.value
-      return filteredVendors.value.slice(startIndex, endIndex)
+      let filtered = store.vendors;
+      if (selectedVendorId.value) {
+        filtered = filtered.filter(v => v.id === selectedVendorId.value);
+      }
+      const startIndex = (currentPage.value - 1) * itemsPerPage.value;
+      const endIndex = startIndex + itemsPerPage.value;
+      return filtered.slice(startIndex, endIndex);
+    })
+
+    const filteredPaginatedVendors = computed(() => {
+      let filtered = store.vendors;
+      if (selectedVendorId.value) {
+        filtered = filtered.filter(v => v.id === selectedVendorId.value);
+      }
+      const startIndex = (currentPage.value - 1) * itemsPerPage.value;
+      const endIndex = startIndex + itemsPerPage.value;
+      return filtered.slice(startIndex, endIndex);
     })
 
     // Make these computed to ensure reactivity
@@ -273,19 +298,29 @@ export default {
       }
     }
 
-    const deleteVendor = async (vendorId) => {
+    // Delete vendor using modal confirmation
+    const { showDeleteModal, itemToDelete, confirmDelete, cancelDelete } = useDeleteConfirmation()
+
+    const deleteVendor = (vendor) => {
+      // Show the confirmation modal first
+      confirmDelete(vendor)
+    }
+
+    const confirmDeleteVendor = async () => {
+      if (!itemToDelete.value) return
+      
       // Check if vendor has associated products
-      const hasProducts = getVendorProductCount.value(vendorId) > 0
+      const hasProducts = getVendorProductCount.value(itemToDelete.value.id) > 0
       if (hasProducts) {
-        alert('Cannot delete vendor with associated products. Please reassign or delete the products first.')
+        toast.error('Cannot delete vendor with associated products. Please reassign or delete the products first.')
+        cancelDelete()
         return
       }
-
-      if (!confirm('Are you sure you want to delete this vendor?')) return
-
+      
       try {
-        await store.deleteVendor(vendorId)
+        await store.deleteVendor(itemToDelete.value.id)
         toast.success('Vendor deleted successfully')
+        cancelDelete() // Close the modal after successful deletion
       } catch (error) {
         console.error('Failed to delete vendor:', error)
         toast.error('Failed to delete vendor. Please try again.')
@@ -335,6 +370,8 @@ export default {
       }
     }
 
+    const vendors = computed(() => store.vendors)
+
     return {
       toast,
       showAddForm,
@@ -342,9 +379,9 @@ export default {
       errorMsg,
       editingVendor,
       formData,
-      searchQuery,
-      filteredVendors,
+      selectedVendorId,
       paginatedVendors,
+      filteredPaginatedVendors,
       currentPage,
       itemsPerPage,
       getVendorProductCount,
@@ -357,7 +394,12 @@ export default {
       navigateToOrders,
       openDropdown,
       toggleDropdown,
-      closeDropdown
+      closeDropdown,
+      showDeleteModal,
+      itemToDelete,
+      cancelDelete,
+      confirmDeleteVendor,
+      vendors,
     }
   }
 }
@@ -444,5 +486,80 @@ export default {
 
 .delete-action:hover {
   background: #b91c1c;
+}
+
+/* Enhanced badge button styles for Products/Orders (no gradient) */
+.badge-clickable {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  margin: 0 2px;
+  letter-spacing: 0.01em;
+}
+
+.badge-success.badge-clickable {
+  background: #10b981;
+  color: #fff;
+}
+.badge-success.badge-clickable:disabled {
+  background: #d1fae5;
+  color: #6ee7b7;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.badge-success.badge-clickable:not(:disabled):hover {
+  background: #059669;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.12);
+}
+
+.badge-info.badge-clickable {
+  background: #2563eb;
+  color: #fff;
+}
+.badge-info.badge-clickable:disabled {
+  background: #dbeafe;
+  color: #93c5fd;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.badge-info.badge-clickable:not(:disabled):hover {
+  background: #1e40af;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.12);
+}
+
+/* Filter Select Styles */
+.filters-container {
+  margin-bottom: 16px;
+}
+
+.filter-select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  max-width: 250px;
+}
+
+.filter-select:hover {
+  border-color: #2563eb;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 </style>

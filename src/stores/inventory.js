@@ -499,6 +499,9 @@ export const useInventoryStore = defineStore('inventory', {
         let numericQuantity;
         let lastUpdated = new Date().toISOString();
         
+        // Handle additional fields like location
+        let location;
+        
         // Check if quantity is an object (from HomeView.vue) or a primitive (from updateInventoryFromOrder)
         if (typeof quantityInput === 'object' && quantityInput !== null) {
           console.log(`updateInventory called with object:`, quantityInput);
@@ -513,6 +516,11 @@ export const useInventoryStore = defineStore('inventory', {
           if (quantityInput.lastUpdated) {
             lastUpdated = quantityInput.lastUpdated;
           }
+          
+          // Extract location if provided
+          if (quantityInput.location !== undefined) {
+            location = quantityInput.location;
+          }
         } else {
           // Direct quantity value passed
           numericQuantity = Number(quantityInput) || 0;
@@ -526,13 +534,37 @@ export const useInventoryStore = defineStore('inventory', {
           console.log(`Found existing inventory for product ${productId}: ${JSON.stringify(existingInventory)}`);
           
           // Update existing inventory
+          const updateData = { 
+            quantity: numericQuantity,  // Use numeric quantity for Firestore
+            lastUpdated: lastUpdated
+          }
+          
+          // Add location if provided
+          if (location !== undefined) {
+            updateData.location = location;
+          }
+          
+          // Save previous data for audit trail
+          const previousData = {
+            quantity: existingInventory.quantity,
+            location: existingInventory.location
+          };
+          
+          // Enhanced metadata for audit trail
+          const metadata = { 
+            previousData,
+            inventoryId: existingInventory.id,
+            productId: productId,
+            productName: this.getProductById(productId)?.name || 'Unknown Product',
+            reason: 'Inventory update',
+            changeType: 'quantity_update'
+          };
+          
           const result = await firebaseService.updateDocument(
             firebaseService.collections.INVENTORY,
             existingInventory.id,
-            { 
-              quantity: numericQuantity,  // Use numeric quantity for Firestore
-              lastUpdated: lastUpdated
-            }
+            updateData,
+            metadata // Pass enhanced metadata
           )
           
           // Update local state with the same numeric quantity
@@ -540,7 +572,10 @@ export const useInventoryStore = defineStore('inventory', {
           if (index !== -1) {
             this.inventory[index].quantity = numericQuantity
             this.inventory[index].lastUpdated = lastUpdated
-            console.log(`Local inventory updated to: ${numericQuantity}`);
+            if (location !== undefined) {
+              this.inventory[index].location = location
+            }
+            console.log(`Local inventory updated to: ${numericQuantity}`, location ? `with location: ${location}` : '');
           }
           
           return result
@@ -554,9 +589,24 @@ export const useInventoryStore = defineStore('inventory', {
             lastUpdated: lastUpdated
           }
           
+          // Add location if provided
+          if (location !== undefined) {
+            newInventory.location = location;
+          }
+          
+          // Enhanced metadata for audit trail
+          const metadata = {
+            action: 'Initial inventory creation',
+            productId: productId,
+            productName: this.getProductById(productId)?.name || 'Unknown Product',
+            reason: 'New inventory item',
+            changeType: 'create_inventory'
+          };
+          
           const result = await firebaseService.addDocument(
             firebaseService.collections.INVENTORY,
-            newInventory
+            newInventory,
+            metadata
           )
           
           this.inventory.push(result)
@@ -659,6 +709,38 @@ export const useInventoryStore = defineStore('inventory', {
       } catch (error) {
         console.error('Error checking low inventory:', error)
       }
-    }
+    },
+    
+    // Log inventory action for audit trail
+    async logInventoryAction(inventoryId, action, data, metadata = {}) {
+      try {
+        // If we have the inventory item, include its details in the metadata
+        const inventoryItem = this.inventory.find(item => item.id === inventoryId);
+        const enhancedMetadata = { ...metadata };
+        
+        if (inventoryItem) {
+          // Add inventory item details to metadata
+          enhancedMetadata.inventoryId = inventoryId;
+          enhancedMetadata.productId = inventoryItem.productId;
+          enhancedMetadata.productName = this.getProductById(inventoryItem.productId)?.name || 'Unknown Product';
+          
+          // Add product ID to data for easier searching
+          if (data && typeof data === 'object') {
+            data.productId = inventoryItem.productId;
+          }
+        }
+        
+        return await firebaseService.logAuditEntry(
+          firebaseService.collections.INVENTORY, 
+          action, 
+          inventoryId, 
+          data, 
+          enhancedMetadata
+        );
+      } catch (error) {
+        console.error('Error logging inventory action:', error);
+        return false;
+      }
+    },
   }
 })

@@ -205,8 +205,8 @@ describe('OrdersView Season Feature', () => {
     const vm = wrapper.vm
     
     // Test season label function
-    expect(vm.getSeasonLabel('july-4th')).toBe('🎆 4th of July')
-    expect(vm.getSeasonLabel('new-years')).toBe('🎊 New Year\'s')
+    expect(vm.getSeasonLabel('july-4th')).toBe('4th of July')
+    expect(vm.getSeasonLabel('new-years')).toBe('New Year\'s')
     expect(vm.getSeasonLabel('unknown-season')).toBe('Unknown Season')
   })
 })

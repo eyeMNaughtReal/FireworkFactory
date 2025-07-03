@@ -25,12 +25,12 @@
     </div>
 
     <div class="filters-container">
-      <input 
-        type="text" 
-        class="search-input"
-        v-model="searchQuery"
-        placeholder="Search categories..."
-      />
+      <select v-model="selectedCategoryId" class="filter-select">
+        <option value="">All Categories</option>
+        <option v-for="category in categories" :key="category.id" :value="category.id">
+          {{ category.name || category.title || '(No Name)' }}
+        </option>
+      </select>
     </div>
 
     <!-- Categories Table -->
@@ -45,7 +45,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="category in paginatedCategories" :key="category.id">
+          <tr v-for="category in filteredPaginatedCategories" :key="category.id">
             <td>{{ category.name || category.title || '(No Name)' }}</td>
             <td>
               <button 
@@ -85,16 +85,14 @@
       </table>
 
       <!-- Empty State -->
-      <div v-if="filteredCategories.length === 0" class="empty-state">
+      <div v-if="categories.length === 0" class="empty-state">
         <h3>No categories yet</h3>
         <p>Click the "Add Category" button to create your first category.</p>
       </div>
-
-      <!-- Pagination -->
       <PagePagination
-        v-if="filteredCategories.length > 0"
+        v-if="categories.length > 0"
         :current-page="currentPage"
-        :total-items="filteredCategories.length"
+        :total-items="categories.length"
         :per-page="itemsPerPage"
         @update:page="currentPage = $event"
       />
@@ -168,7 +166,7 @@
 </template>
 
 <script>
-import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted, watch, inject } from 'vue'
 import { useInventoryStore } from '@/stores/inventory'
 import { useRouter } from 'vue-router'
 import PagePagination from '@/components/PagePagination.vue'
@@ -186,6 +184,7 @@ export default {
     const store = useInventoryStore();
     const router = useRouter();
     const toast = useToast();
+    const confirmation = inject('confirmation');
     const showAddForm = ref(false);
     const showEditForm = ref(false);
     const editCategoryData = reactive({ id: props.id || '', name: '' });
@@ -207,23 +206,12 @@ export default {
       }
     });
 
-    const searchQuery = ref('');
+    const selectedCategoryId = ref('');
 
-    const filteredCategories = computed(() => {
-      let result = store.categories;
-
-      if (searchQuery.value) {
-        const query = searchQuery.value.toLowerCase();
-        result = result.filter(c => c.name.toLowerCase().includes(query));
-      }
-
-      return result;
-    });
-    
     const paginatedCategories = computed(() => {
       const startIndex = (currentPage.value - 1) * itemsPerPage.value;
       const endIndex = startIndex + itemsPerPage.value;
-      return filteredCategories.value.slice(startIndex, endIndex);
+      return store.categories.slice(startIndex, endIndex);
     });
     const loading = computed(() => store.loading)
     const errors = computed(() => store.errors)
@@ -287,14 +275,25 @@ export default {
     }
 
     const deleteCategory = async (categoryId) => {
-      if (confirm('Are you sure you want to delete this category?')) {
-        try {
-          await store.deleteCategory(categoryId)
-          toast.success('Category deleted successfully')
-        } catch (error) {
+      try {
+        await confirmation.confirm({
+          title: 'Delete Category',
+          message: 'Are you sure you want to delete this category?',
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          messageType: 'danger',
+          confirmButtonType: 'danger'
+        });
+        // If confirmed, proceed with deletion
+        await store.deleteCategory(categoryId)
+        toast.success('Category deleted successfully')
+      } catch (error) {
+        // User canceled or error occurred
+        if (error instanceof Error) {
           console.error('Failed to delete category:', error)
           toast.error('Failed to delete category. Please try again.')
         }
+        // else: user canceled, do nothing
       }
     }
 
@@ -311,9 +310,17 @@ export default {
     }
 
     const navigateToOrders = (categoryId) => {
+      // Get all product IDs for this category
+      const categoryProductIds = store.products
+        .filter(p => p.categoryId === categoryId)
+        .map(p => p.id)
+      
       router.push({
         name: 'orders',
-        query: { categoryId }
+        query: {
+          categoryId,
+          productIds: categoryProductIds.join(',')
+        }
       })
     }
 
@@ -355,9 +362,21 @@ export default {
     })
 
     // Reset page when filters change
-    watch(searchQuery, () => {
+    watch(selectedCategoryId, () => {
       currentPage.value = 1;
     });
+
+    const filteredPaginatedCategories = computed(() => {
+      let filtered = store.categories;
+      if (selectedCategoryId.value) {
+        filtered = filtered.filter(c => c.id === selectedCategoryId.value);
+      }
+      const startIndex = (currentPage.value - 1) * itemsPerPage.value;
+      const endIndex = startIndex + itemsPerPage.value;
+      return filtered.slice(startIndex, endIndex);
+    });
+
+    const categories = computed(() => store.categories);
 
     return {
       // Toast
@@ -372,11 +391,12 @@ export default {
       editCategoryData,
       
       // Data and pagination
-      filteredCategories,
       paginatedCategories,
+      filteredPaginatedCategories,
       currentPage,
       itemsPerPage,
-      searchQuery,
+      selectedCategoryId,
+      categories,
       
       // App state
       loading,
@@ -570,5 +590,72 @@ export default {
 
 .delete-action:hover {
   background: #b91c1c;
+}
+
+/* Enhanced badge button styles for Products/Orders */
+.badge-clickable {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  margin: 0 2px;
+  letter-spacing: 0.01em;
+}
+
+.badge-success.badge-clickable {
+  background: #10b981;
+  color: #fff;
+}
+.badge-success.badge-clickable:disabled {
+  background: #d1fae5;
+  color: #6ee7b7;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.badge-success.badge-clickable:not(:disabled):hover {
+  background: #059669;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(16,185,129,0.12);
+}
+
+.badge-info.badge-clickable {
+  background: #2563eb;
+  color: #fff;
+}
+.badge-info.badge-clickable:disabled {
+  background: #dbeafe;
+  color: #93c5fd;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.badge-info.badge-clickable:not(:disabled):hover {
+  background: #1e40af;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.12);
+}
+
+/* Match filter-select style for dropdown */
+.filter-select {
+  padding: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  max-width: 250px;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 </style>

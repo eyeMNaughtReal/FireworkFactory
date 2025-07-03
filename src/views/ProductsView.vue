@@ -63,7 +63,7 @@
                   <button @click="editProduct(product); closeDropdown()" class="dropdown-item">
                     Edit
                   </button>
-                  <button @click="deleteProduct(product.id); closeDropdown()" class="dropdown-item delete-action">
+                  <button @click="handleDeleteClick(product); closeDropdown()" class="dropdown-item delete-action">
                     Delete
                   </button>
                 </div>
@@ -212,6 +212,22 @@
         </form>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <DeleteConfirmationModal
+      :is-visible="showDeleteModal"
+      title="Confirm Product Deletion"
+      :message="'Are you sure you want to delete this product? This action cannot be undone.'"
+      confirm-text="Delete Product"
+      cancel-text="Cancel"
+      :item-details="itemToDelete && itemToDelete.value ? {
+        'Name': itemToDelete.value.name,
+        'Category': getCategoryName(itemToDelete.value.categoryId),
+        'Vendor': getVendorName(itemToDelete.value.vendorId)
+      } : null"
+      @confirm="deleteProduct"
+      @cancel="cancelDelete"
+    />
   </div>
 </template>
 
@@ -221,11 +237,14 @@ import { useRoute } from 'vue-router'
 import { useInventoryStore } from '@/stores/inventory'
 import PagePagination from '@/components/PagePagination.vue'
 import { useToast } from '@/components/Toast.vue'
+import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue'
+import useDeleteConfirmation from '@/composables/useDeleteConfirmation'
 
 export default {
   name: 'ProductsView',
   components: {
-    PagePagination
+    PagePagination,
+    DeleteConfirmationModal
   },
   setup() {
     const store = useInventoryStore()
@@ -456,17 +475,35 @@ export default {
       }
     }
 
-    const deleteProduct = async (id) => {
-      if (!confirm('Are you sure you want to delete this product?')) return
+    // Delete product using modal confirmation
+    /* eslint-disable no-unused-vars */
+    const { 
+      showDeleteModal, 
+      itemToDelete, 
+      confirmDelete,
+      cancelDelete
+    } = useDeleteConfirmation()
+
+    const deleteProduct = async () => {
       try {
-        await store.deleteProduct(id)
+        if (!itemToDelete.value) {
+          throw new Error('No product selected for deletion')
+        }
+        await store.deleteProduct(itemToDelete.value.id)
         toast.success('Product deleted successfully')
+        showDeleteModal.value = false
+        itemToDelete.value = null
       } catch (error) {
         console.error('Failed to delete product:', error)
-        toast.error('Failed to delete product. Please try again.')
+        toast.error('Failed to delete product: ' + error.message)
       }
     }
 
+    const handleDeleteClick = (product) => {
+      confirmDelete(product, 'product')
+    }
+    /* eslint-enable no-unused-vars */
+    
     const getCategoryName = (id) => {
       const category = store.categories.find(c => c.id === id)
       return category ? category.name : 'N/A'
