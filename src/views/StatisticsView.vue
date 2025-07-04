@@ -25,18 +25,6 @@
       <button @click="refreshData" class="btn btn-small">Retry</button>
     </div>
 
-    <!-- Debug Info (temporary) -->
-    <div v-if="debug" class="debug-info">
-      <p>Data Loading Status:</p>
-      <ul>
-        <li>Categories: {{ debug.categoriesLoaded ? '✅' : '❌' }}</li>
-        <li>Vendors: {{ debug.vendorsLoaded ? '✅' : '❌' }}</li>
-        <li>Products: {{ debug.productsLoaded ? '✅' : '❌' }}</li>
-        <li>Orders: {{ debug.ordersLoaded ? '✅' : '❌' }}</li>
-        <li>Inventory: {{ debug.inventoryLoaded ? '✅' : '❌' }}</li>
-      </ul>
-    </div>
-
     <!-- Summary Cards -->
     <div class="stats-summary">
       <div class="stat-card">
@@ -154,14 +142,7 @@ export default {
       selectedCategory: '',
       sortBy: 'soldQuantity',
       loading: false,
-      error: null,
-      debug: {
-        productsLoaded: false,
-        ordersLoaded: false,
-        inventoryLoaded: false,
-        categoriesLoaded: false,
-        vendorsLoaded: false
-      }
+      error: null
     }
   },
   computed: {
@@ -313,72 +294,40 @@ export default {
       this.error = null
       
       try {
-        // Load data sequentially to better track what's loaded
         try {
           await this.store.fetchCategories()
-          this.debug.categoriesLoaded = true
-          console.log('Categories loaded:', this.categories.length, 'categories found')
-          this.categories.forEach(c => console.log('Category:', c.id, c.name))
         } catch (e) {
-          console.error('Failed to load categories:', e)
           this.error = 'Failed to load categories'
+          throw e
         }
 
         try {
           await this.store.fetchVendors()
-          this.debug.vendorsLoaded = true
-          console.log('Vendors loaded:', this.store.vendors.length, 'vendors found')
-          this.store.vendors.forEach(v => console.log('Vendor:', v.id, v.name))
         } catch (e) {
-          console.error('Failed to load vendors:', e)
           this.error = 'Failed to load vendors'
+          throw e
         }
 
         try {
           await this.store.fetchProducts()
-          this.debug.productsLoaded = true
-          console.log('Products loaded:', this.products.length, 'products found')
-          this.products.forEach(p => console.log('Product:', p.id, p.name, 'CategoryId:', p.categoryId))
         } catch (e) {
-          console.error('Failed to load products:', e)
           this.error = 'Failed to load products'
+          throw e
         }
 
         try {
           await this.store.fetchOrders()
-          this.debug.ordersLoaded = true
-          console.log('Orders loaded:', this.orders.length, 'orders found')
-          this.orders.forEach(o => {
-            console.log('Order:', o.id, 'Items:', o.items?.length || 0)
-            o.items?.forEach(item => console.log('- Order Item:', item.productId, 'Quantity:', item.quantity, 'ActualQuantity:', item.actualQuantity))
-          })
         } catch (e) {
-          console.error('Failed to load orders:', e)
           this.error = 'Failed to load orders'
+          throw e
         }
 
         try {
           await this.store.fetchInventory()
-          this.debug.inventoryLoaded = true
-          console.log('Inventory loaded:', this.inventory.length, 'inventory records found')
-          this.inventory.forEach(i => console.log('Inventory:', i.productId, 'Quantity:', i.quantity))
         } catch (e) {
-          console.error('Failed to load inventory:', e)
           this.error = 'Failed to load inventory'
+          throw e
         }
-
-        // Log computed values
-        const stats = this.salesStats
-        console.log('Sales stats computed:', stats.length, 'products with orders found')
-        stats.forEach(stat => {
-          console.log('Product Stats:', {
-            name: stat.productName,
-            ordered: stat.orderedQuantity,
-            remaining: stat.remainingQuantity,
-            sold: stat.soldQuantity,
-            sellThrough: stat.soldPercentage + '%'
-          })
-        })
 
       } catch (error) {
         this.error = 'Failed to load statistics data'
@@ -391,13 +340,6 @@ export default {
     async refreshData() {
       this.loading = true
       this.error = null
-      this.debug = {
-        productsLoaded: false,
-        ordersLoaded: false,
-        inventoryLoaded: false,
-        categoriesLoaded: false,
-        vendorsLoaded: false
-      }
 
       try {
         await Promise.all([
@@ -407,12 +349,6 @@ export default {
           this.store.fetchOrders(),
           this.store.fetchInventory()
         ])
-
-        this.debug.categoriesLoaded = true
-        this.debug.vendorsLoaded = true
-        this.debug.productsLoaded = true
-        this.debug.ordersLoaded = true
-        this.debug.inventoryLoaded = true
 
         this.toast.success('Data reloaded successfully')
       } catch (error) {
@@ -430,9 +366,7 @@ export default {
           name: "Test Category",
           description: "Sample category for testing"
         }
-        console.log('Adding category:', categoryData)
         const category = await this.store.addCategory(categoryData)
-        console.log('Category added:', category)
         
         // Add a vendor
         const vendorData = {
@@ -440,9 +374,7 @@ export default {
           email: "test@example.com",
           phone: "555-0123"
         }
-        console.log('Adding vendor:', vendorData)
         const vendor = await this.store.addVendor(vendorData)
-        console.log('Vendor added:', vendor)
         
         // Add products
         const products = [
@@ -473,9 +405,7 @@ export default {
         ]
         
         for (const productData of products) {
-          console.log('Adding product:', productData)
           const product = await this.store.addProduct(productData)
-          console.log('Product added:', product)
           
           // Add an order for this product
           const orderData = {
@@ -492,7 +422,6 @@ export default {
             orderDate: new Date().toISOString(),
             createdAt: new Date().toISOString()
           }
-          console.log('Adding order:', orderData)
           await this.store.addOrder(orderData)
           
           // Add inventory - half of the ordered quantity remaining
@@ -501,7 +430,6 @@ export default {
             quantity: 240, // Half of the actualQuantity
             lastUpdated: new Date().toISOString()
           }
-          console.log('Adding inventory:', inventoryData)
           await this.store.addInventory(inventoryData)
         }
         
@@ -771,24 +699,5 @@ export default {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
-}
-
-.debug-info {
-  margin: 1rem 0;
-  padding: 1rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-}
-
-.debug-info ul {
-  list-style: none;
-  padding: 0;
-  margin: 0.5rem 0 0 0;
-}
-
-.debug-info li {
-  margin: 0.25rem 0;
-  font-family: monospace;
 }
 </style>
