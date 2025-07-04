@@ -881,15 +881,16 @@ export default {
   gap: 8px;
 }
 
-.btn-icon {
+.btn-delete {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 8%;
   border: none;
-  background: none;
+  background: #dc2626;
+  color: white;
   cursor: pointer;
   transition: background 0.2s;
 }
