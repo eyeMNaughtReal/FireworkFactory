@@ -12,9 +12,29 @@
         <select v-model="sortBy" class="form-input" style="width: auto; min-width: 150px;">
           <option value="soldQuantity">Units Sold</option>
           <option value="soldPercentage">Sell-through %</option>
-          <option value="revenue">Est. Revenue</option>
         </select>
+        <button @click="refreshData" class="btn btn-primary" :disabled="loading">
+          {{ loading ? 'Loading...' : 'Refresh Data' }}
+        </button>
       </div>
+    </div>
+
+    <!-- Error Message -->
+    <div v-if="error" class="error-message">
+      {{ error }}
+      <button @click="refreshData" class="btn btn-small">Retry</button>
+    </div>
+
+    <!-- Debug Info (temporary) -->
+    <div v-if="debug" class="debug-info">
+      <p>Data Loading Status:</p>
+      <ul>
+        <li>Categories: {{ debug.categoriesLoaded ? '✅' : '❌' }}</li>
+        <li>Vendors: {{ debug.vendorsLoaded ? '✅' : '❌' }}</li>
+        <li>Products: {{ debug.productsLoaded ? '✅' : '❌' }}</li>
+        <li>Orders: {{ debug.ordersLoaded ? '✅' : '❌' }}</li>
+        <li>Inventory: {{ debug.inventoryLoaded ? '✅' : '❌' }}</li>
+      </ul>
     </div>
 
     <!-- Summary Cards -->
@@ -48,7 +68,6 @@
             <th>Units Remaining</th>
             <th>Units Sold</th>
             <th>Sell-through %</th>
-            <th>Est. Revenue</th>
             <th>Performance</th>
           </tr>
         </thead>
@@ -71,7 +90,6 @@
                 {{ stat.soldPercentage }}%
               </span>
             </td>
-            <td class="number">${{ formatCurrency(stat.estimatedRevenue) }}</td>
             <td>
               <span class="performance-badge" :class="getPerformanceClass(stat.soldPercentage)">
                 {{ getPerformanceLabel(stat.soldPercentage) }}
@@ -85,6 +103,9 @@
       <div v-if="sortedStats.length === 0" class="empty-state">
         <h3>No Sales Data Available</h3>
         <p>Add some orders and inventory data to see sales statistics.</p>
+        <button @click="addSampleData" class="btn btn-primary" style="margin-top: 1rem;">
+          Add Sample Data
+        </button>
       </div>
     </div>
 
@@ -110,6 +131,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Loading and Error States -->
+    <div v-if="loading" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <p>Loading statistics data...</p>
+    </div>
+    <div v-if="error" class="error-message">
+      <p>{{ error }}</p>
+    </div>
   </div>
 </template>
 
@@ -123,7 +153,15 @@ export default {
     return {
       selectedCategory: '',
       sortBy: 'soldQuantity',
-      loading: false
+      loading: false,
+      error: null,
+      debug: {
+        productsLoaded: false,
+        ordersLoaded: false,
+        inventoryLoaded: false,
+        categoriesLoaded: false,
+        vendorsLoaded: false
+      }
     }
   },
   computed: {
@@ -152,27 +190,46 @@ export default {
     },
     salesStats() {
       return this.products.map(product => {
-        // Calculate total ordered quantity from orders
-        const productOrders = this.orders.filter(order => order.productId === product.id)
-        const orderedQuantity = productOrders.reduce((total, order) => {
-          return total + (order.quantity || 0)
-        }, 0)
+        // Calculate total ordered quantity from all orders over time
+        const orderedQuantity = this.orders
+          .filter(order => order.status !== 'cancelled') // Exclude cancelled orders
+          .reduce((total, order) => {
+            // Look through items array in each order
+            const orderItems = order.items || []
+            const productItems = orderItems.filter(item => item.productId === product.id)
+            return total + productItems.reduce((itemTotal, item) => {
+              // Use actualQuantity if available (this is the converted quantity in individual units)
+              // Otherwise fall back to quantity (cases/packs) and use unit conversion
+              if (item.actualQuantity) {
+                return itemTotal + item.actualQuantity
+              }
+              
+              // If no actualQuantity, calculate based on unit and unitConfig
+              if (item.unit && product.unitConfig) {
+                const config = product.unitConfig
+                if (item.unit === 'case') {
+                  return itemTotal + (item.quantity * (config.totalItemsPerCase || config.case.conversionRate))
+                } else if (item.unit === 'pack') {
+                  return itemTotal + (item.quantity * config.package.conversionRate)
+                }
+              }
+              
+              // Fallback to raw quantity if no conversion possible
+              return itemTotal + (item.quantity || 0)
+            }, 0)
+          }, 0)
 
         // Get current inventory
         const inventoryItem = this.inventory.find(inv => inv.productId === product.id)
         const remainingQuantity = inventoryItem ? inventoryItem.quantity : 0
 
-        // Calculate sold quantity
+        // Calculate sold quantity (ordered - remaining)
         const soldQuantity = Math.max(0, orderedQuantity - remainingQuantity)
         
         // Calculate sell-through percentage
         const soldPercentage = orderedQuantity > 0 
           ? Math.round((soldQuantity / orderedQuantity) * 100) 
           : 0
-
-        // Estimate revenue (assuming average price of $2 per unit - could be made configurable)
-        const estimatedUnitPrice = 2.00
-        const estimatedRevenue = soldQuantity * estimatedUnitPrice
 
         // Get related data
         const category = this.categories.find(c => c.id === product.categoryId)
@@ -187,8 +244,7 @@ export default {
           orderedQuantity,
           remainingQuantity,
           soldQuantity,
-          soldPercentage,
-          estimatedRevenue
+          soldPercentage
         }
       }).filter(stat => stat.orderedQuantity > 0) // Only show products that had orders
     },
@@ -221,8 +277,6 @@ export default {
             return b.soldQuantity - a.soldQuantity
           case 'soldPercentage':
             return b.soldPercentage - a.soldPercentage
-          case 'revenue':
-            return b.estimatedRevenue - a.estimatedRevenue
           default:
             return 0
         }
@@ -256,19 +310,214 @@ export default {
     },
     async loadData() {
       this.loading = true
+      this.error = null
+      
+      try {
+        // Load data sequentially to better track what's loaded
+        try {
+          await this.store.fetchCategories()
+          this.debug.categoriesLoaded = true
+          console.log('Categories loaded:', this.categories.length, 'categories found')
+          this.categories.forEach(c => console.log('Category:', c.id, c.name))
+        } catch (e) {
+          console.error('Failed to load categories:', e)
+          this.error = 'Failed to load categories'
+        }
+
+        try {
+          await this.store.fetchVendors()
+          this.debug.vendorsLoaded = true
+          console.log('Vendors loaded:', this.store.vendors.length, 'vendors found')
+          this.store.vendors.forEach(v => console.log('Vendor:', v.id, v.name))
+        } catch (e) {
+          console.error('Failed to load vendors:', e)
+          this.error = 'Failed to load vendors'
+        }
+
+        try {
+          await this.store.fetchProducts()
+          this.debug.productsLoaded = true
+          console.log('Products loaded:', this.products.length, 'products found')
+          this.products.forEach(p => console.log('Product:', p.id, p.name, 'CategoryId:', p.categoryId))
+        } catch (e) {
+          console.error('Failed to load products:', e)
+          this.error = 'Failed to load products'
+        }
+
+        try {
+          await this.store.fetchOrders()
+          this.debug.ordersLoaded = true
+          console.log('Orders loaded:', this.orders.length, 'orders found')
+          this.orders.forEach(o => {
+            console.log('Order:', o.id, 'Items:', o.items?.length || 0)
+            o.items?.forEach(item => console.log('- Order Item:', item.productId, 'Quantity:', item.quantity, 'ActualQuantity:', item.actualQuantity))
+          })
+        } catch (e) {
+          console.error('Failed to load orders:', e)
+          this.error = 'Failed to load orders'
+        }
+
+        try {
+          await this.store.fetchInventory()
+          this.debug.inventoryLoaded = true
+          console.log('Inventory loaded:', this.inventory.length, 'inventory records found')
+          this.inventory.forEach(i => console.log('Inventory:', i.productId, 'Quantity:', i.quantity))
+        } catch (e) {
+          console.error('Failed to load inventory:', e)
+          this.error = 'Failed to load inventory'
+        }
+
+        // Log computed values
+        const stats = this.salesStats
+        console.log('Sales stats computed:', stats.length, 'products with orders found')
+        stats.forEach(stat => {
+          console.log('Product Stats:', {
+            name: stat.productName,
+            ordered: stat.orderedQuantity,
+            remaining: stat.remainingQuantity,
+            sold: stat.soldQuantity,
+            sellThrough: stat.soldPercentage + '%'
+          })
+        })
+
+      } catch (error) {
+        this.error = 'Failed to load statistics data'
+        console.error('Error loading statistics data:', error)
+        this.toast.error(this.error)
+      } finally {
+        this.loading = false
+      }
+    },
+    async refreshData() {
+      this.loading = true
+      this.error = null
+      this.debug = {
+        productsLoaded: false,
+        ordersLoaded: false,
+        inventoryLoaded: false,
+        categoriesLoaded: false,
+        vendorsLoaded: false
+      }
+
       try {
         await Promise.all([
-          this.store.fetchProducts(),
           this.store.fetchCategories(),
           this.store.fetchVendors(),
+          this.store.fetchProducts(),
           this.store.fetchOrders(),
           this.store.fetchInventory()
         ])
+
+        this.debug.categoriesLoaded = true
+        this.debug.vendorsLoaded = true
+        this.debug.productsLoaded = true
+        this.debug.ordersLoaded = true
+        this.debug.inventoryLoaded = true
+
+        this.toast.success('Data reloaded successfully')
       } catch (error) {
-        this.toast.error('Failed to load statistics data')
-        console.error('Error loading statistics data:', error)
+        this.error = 'Failed to reload data'
+        console.error('Error reloading data:', error)
+        this.toast.error(this.error)
       } finally {
         this.loading = false
+      }
+    },
+    async addSampleData() {
+      try {
+        // First add a category
+        const categoryData = {
+          name: "Test Category",
+          description: "Sample category for testing"
+        }
+        console.log('Adding category:', categoryData)
+        const category = await this.store.addCategory(categoryData)
+        console.log('Category added:', category)
+        
+        // Add a vendor
+        const vendorData = {
+          name: "Test Vendor",
+          email: "test@example.com",
+          phone: "555-0123"
+        }
+        console.log('Adding vendor:', vendorData)
+        const vendor = await this.store.addVendor(vendorData)
+        console.log('Vendor added:', vendor)
+        
+        // Add products
+        const products = [
+          {
+            name: "Test Firework 1",
+            categoryId: category.id,
+            vendorId: vendor.id,
+            description: "A test firework product",
+            unitConfig: {
+              structure: "item-package-case",
+              case: { conversionRate: 4 },
+              package: { conversionRate: 12 },
+              totalItemsPerCase: 48
+            }
+          },
+          {
+            name: "Test Firework 2",
+            categoryId: category.id,
+            vendorId: vendor.id,
+            description: "Another test firework product",
+            unitConfig: {
+              structure: "item-package-case",
+              case: { conversionRate: 6 },
+              package: { conversionRate: 8 },
+              totalItemsPerCase: 48
+            }
+          }
+        ]
+        
+        for (const productData of products) {
+          console.log('Adding product:', productData)
+          const product = await this.store.addProduct(productData)
+          console.log('Product added:', product)
+          
+          // Add an order for this product
+          const orderData = {
+            items: [{
+              productId: product.id,
+              unit: 'case',
+              quantity: 10,
+              actualQuantity: 480, // Total individual items (48 items per case * 10 cases)
+              unitCost: 20
+            }],
+            status: 'received',
+            season: '',
+            total: 200, // 10 cases * $20
+            orderDate: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          }
+          console.log('Adding order:', orderData)
+          await this.store.addOrder(orderData)
+          
+          // Add inventory - half of the ordered quantity remaining
+          const inventoryData = {
+            productId: product.id,
+            quantity: 240, // Half of the actualQuantity
+            lastUpdated: new Date().toISOString()
+          }
+          console.log('Adding inventory:', inventoryData)
+          await this.store.addInventory(inventoryData)
+        }
+        
+        this.toast.success('Sample data added successfully')
+        await this.loadData() // Reload the view
+        
+      } catch (error) {
+        console.error('Error adding sample data:', error)
+        this.toast.error('Failed to add sample data')
+      }
+    }
+  },
+  watch: {
+    error(newError) {
+      if (newError) {
+        this.toast.error(newError)
       }
     }
   },
@@ -479,5 +728,67 @@ export default {
 .stats .percentage {
   font-size: 0.75rem;
   color: #64748b;
+}
+
+/* Add loading and error states */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.error-message {
+  color: #dc2626;
+  padding: 1rem;
+  margin: 1rem 0;
+  background: #fee2e2;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.loading-spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.debug-info {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.debug-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0 0;
+}
+
+.debug-info li {
+  margin: 0.25rem 0;
+  font-family: monospace;
 }
 </style>
