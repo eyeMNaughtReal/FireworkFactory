@@ -88,130 +88,15 @@
       />
     </div>
 
-    <!-- Add/Edit Product Modal -->
-    <div v-if="showModal" class="modal-overlay" @click="hideModal">
-      <div class="form-container" @click.stop>
-        <h2 class="content-title">{{ isEditing ? 'Edit Product' : 'Add New Product' }}</h2>
-        <form @submit.prevent="handleSubmit">
-          <div v-if="errorMsg" class="error-message">
-            {{ errorMsg }}
-          </div>
-          <div class="form-group">
-            <label class="form-label">Product Name*</label>
-            <input v-model="formData.name" type="text" class="form-input" required>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">Category*</label>
-            <select v-model="formData.categoryId" class="form-select" required>
-              <option value="">Select Category</option>
-              <option v-for="category in categories" :key="category.id" :value="category.id">
-                {{ category.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-section">
-            <h3>Unit Configuration</h3>
-            
-            <div class="form-group">
-              <label class="form-label">Unit Structure*</label>
-              <select v-model="formData.unitConfig.structure" class="form-input" required @change="resetUnitConfig">
-                <option value="">Select Unit Structure</option>
-                <option value="item-package-case">Item → Package → Case</option>
-                <option value="item-case">Item → Case (No Packages)</option>
-              </select>
-              <div class="help-text">Select how this product is organized</div>
-            </div>
-
-            <template v-if="formData.unitConfig.structure === 'item-package-case'">
-              <div class="unit-grid">
-                <div class="form-group">
-                  <label class="form-label">Items per Package*</label>
-                  <input 
-                    v-model.number="formData.unitConfig.package.conversionRate" 
-                    type="number" 
-                    class="form-input" 
-                    min="1" 
-                    required
-                    @input="calculateTotalItems"
-                  />
-                  <div class="help-text">Number of items in one package</div>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Packages per Case*</label>
-                  <input 
-                    v-model.number="formData.unitConfig.case.conversionRate" 
-                    type="number" 
-                    class="form-input" 
-                    min="1" 
-                    required
-                    @input="calculateTotalItems"
-                  />
-                  <div class="help-text">Number of packages in one case</div>
-                </div>
-              </div>
-            </template>
-
-            <template v-else-if="formData.unitConfig.structure === 'item-case'">
-              <div class="unit-grid">
-                <div class="form-group">
-                  <label class="form-label">Items per Case*</label>
-                  <input 
-                    v-model.number="formData.unitConfig.case.conversionRate" 
-                    type="number" 
-                    class="form-input" 
-                    min="1" 
-                    required
-                    @input="calculateTotalItems"
-                  />
-                  <div class="help-text">Number of items in one case</div>
-                </div>
-              </div>
-            </template>
-
-            <div class="unit-summary" v-if="formData.unitConfig.structure">
-              <strong>Total Items per Case:</strong> {{ formData.unitConfig.totalItemsPerCase }}
-            </div>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">Vendor*</label>
-            <select v-model="formData.vendorId" class="form-select" required>
-              <option value="">Select Vendor</option>
-              <option v-for="vendor in vendors" :key="vendor.id" :value="vendor.id">
-                {{ vendor.name }}
-              </option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label">Low Stock Threshold</label>
-            <div class="threshold-config">
-              <input v-model.number="formData.threshold" type="number" class="form-input threshold-input" min="0" />
-              <select v-model="formData.thresholdUnit" class="form-select threshold-unit">
-                <option value="item">Items</option>
-                <option value="pack" v-if="formData.unitConfig.structure === 'item-package-case'">Packages</option>
-                <option value="case">Cases</option>
-              </select>
-            </div>
-            <div class="threshold-info" v-if="formData.threshold && formData.thresholdUnit">
-              Alert when stock falls below: {{ getThresholdInItems() }} individual items
-            </div>
-          </div>
-
-          <div class="actions">
-            <button type="button" class="btn btn-secondary" @click="hideModal">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary">
-              {{ isEditing ? 'Update Product' : 'Add Product' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <!-- Reusable NewProductModal Component -->
+    <NewProductModal
+      :show="showModal"
+      :product="editingProduct ? editingProduct : undefined"
+      :categories="categories"
+      :vendors="vendors"
+      @submit="handleProductModalSubmit"
+      @cancel="hideModal"
+    />
 
     <!-- Delete Confirmation Modal -->
     <DeleteConfirmationModal
@@ -239,26 +124,43 @@ import PagePagination from '@/components/PagePagination.vue'
 import { useToast } from '@/components/Toast.vue'
 import DeleteConfirmationModal from '@/components/DeleteConfirmationModal.vue'
 import useDeleteConfirmation from '@/composables/useDeleteConfirmation'
+import NewProductModal from '@/components/NewProductModal.vue'
 
 export default {
   name: 'ProductsView',
   components: {
     PagePagination,
-    DeleteConfirmationModal
+    DeleteConfirmationModal,
+    NewProductModal
   },
   setup() {
+    // Handles product add/edit from NewProductModal
+    const handleProductModalSubmit = async (productData) => {
+      try {
+        if (editingProduct.value && editingProduct.value.id) {
+          // Edit existing product
+          await store.updateProduct(editingProduct.value.id, productData)
+          toast.success('Product updated successfully')
+        } else {
+          // Add new product
+          await store.addProduct(productData)
+          toast.success('Product added successfully')
+        }
+        showModal.value = false
+        editingProduct.value = null
+      } catch (error) {
+        toast.error('Failed to save product: ' + error.message)
+      }
+    }
     const store = useInventoryStore()
     const route = useRoute()
     const toast = useToast()
     const showModal = ref(false)
-    const submitting = ref(false)
-    const errorMsg = ref('')
     const editingProduct = ref(null)
     const searchQuery = ref('')
     const categoryFilter = ref('')
     const vendorFilter = ref('')
     const openDropdown = ref(null)
-    const isEditing = computed(() => !!editingProduct.value)
 
     onMounted(async () => {
       try {
@@ -267,7 +169,6 @@ export default {
           store.categories.length === 0 ? store.fetchCategories() : Promise.resolve(),
           store.vendors.length === 0 ? store.fetchVendors() : Promise.resolve()
         ])
-        
         // Set filter values from URL query parameters
         if (route.query.categoryId) {
           categoryFilter.value = route.query.categoryId
@@ -275,7 +176,6 @@ export default {
         if (route.query.vendorId) {
           vendorFilter.value = route.query.vendorId
         }
-        
         // Add click outside handler for dropdowns
         document.addEventListener('click', handleClickOutside)
       } catch (error) {
@@ -301,7 +201,15 @@ export default {
       thresholdUnit: 'item'
     })
 
-    const formData = reactive(initFormData())
+    const formData = reactive({
+      ...initFormData(),
+      subCategory: ''
+    })
+    // Sub-category options based on selected category
+    const subCategoryOptions = computed(() => {
+      const selectedCat = store.categories.find(cat => cat.id === formData.categoryId)
+      return selectedCat && Array.isArray(selectedCat.subCategories) ? selectedCat.subCategories : []
+    })
 
     const calculateTotalItems = () => {
       if (formData.unitConfig.structure === 'item-package-case') {
@@ -365,115 +273,19 @@ export default {
 
     const showAddProductForm = () => {
       editingProduct.value = null
-      resetForm()
       showModal.value = true
     }
 
-    const resetForm = () => {
-      Object.assign(formData, initFormData())
-    }
-
     const editProduct = (product) => {
-      editingProduct.value = product
-      const unitConfig = product.unitConfig || {
-        structure: '',
-        item: { type: 'item', conversionRate: 1 },
-        package: { type: 'package', conversionRate: 0 },
-        case: { type: 'case', conversionRate: 0 }
-      }
-      
-      Object.assign(formData, {
-        name: product.name,
-        categoryId: product.categoryId,
-        vendorId: product.vendorId,
-        unitConfig: {
-          structure: unitConfig.structure,
-          item: { ...unitConfig.item },
-          package: { ...unitConfig.package },
-          case: { ...unitConfig.case }
-        },
-        threshold: product.lowInventoryThreshold || 0,
-        thresholdUnit: product.thresholdUnit || 'item'
-      })
-      
+      editingProduct.value = { ...product }
       showModal.value = true
     }
 
     const hideModal = () => {
       showModal.value = false
       editingProduct.value = null
-      resetForm()
     }
 
-    // Fixed issue where 'item-package-case' structure was not being saved correctly
-    const handleSubmit = async () => {
-      if (submitting.value) return;
-      submitting.value = true;
-      errorMsg.value = '';
-
-      try {
-        // Ensure unitConfig is defined
-        if (!formData.unitConfig) {
-          formData.unitConfig = {
-            structure: '',
-            item: { type: 'item', conversionRate: 1 },
-            package: { type: 'package', conversionRate: 0 },
-            case: { type: 'case', conversionRate: 0 }
-          };
-        }
-
-        // Ensure unitConfig.structure is defined
-        if (!formData.unitConfig.structure) {
-          throw new Error('Unit structure is required. Please select a valid unit structure.');
-        }
-
-        // Calculate total items before saving
-        calculateTotalItems();
-
-        // Create the product data object
-        const productData = {
-          name: formData.name,
-          categoryId: formData.categoryId,
-          vendorId: formData.vendorId,
-          unitConfig: {
-            structure: formData.unitConfig.structure,
-            item: { type: 'item', conversionRate: 1 },
-            package: { 
-              type: 'package', 
-              conversionRate: formData.unitConfig.structure === 'item-package-case' ? 
-                formData.unitConfig.package.conversionRate || 0 : 0 
-            },
-            case: { 
-              type: 'case', 
-              conversionRate: formData.unitConfig.case.conversionRate || 0
-            },
-            totalItemsPerCase: formData.unitConfig.totalItemsPerCase || 0
-          },
-          lowInventoryThreshold: formData.threshold || 0,
-          thresholdUnit: formData.thresholdUnit || 'item',
-          thresholdInItems: getThresholdInItems()
-        };
-
-        console.log('Saving product:', productData);
-
-        if (editingProduct.value) {
-          await store.updateProduct(editingProduct.value.id, productData);
-          toast.success('Product updated successfully');
-        } else {
-          await store.addProduct(productData);
-          toast.success('Product created successfully');
-        }
-
-        hideModal();
-        await store.fetchProducts(); // Refresh the products list
-      } catch (error) {
-        console.error('Failed to save product:', error);
-        errorMsg.value = 'Failed to save product. Please try again.';
-        toast.error('Failed to save product. Please try again.');
-      } finally {
-        submitting.value = false;
-      }
-    }
 
     // Delete product using modal confirmation
     /* eslint-disable no-unused-vars */
@@ -608,18 +420,16 @@ export default {
       categoryFilter,
       vendorFilter,
       showModal,
-      submitting,
-      errorMsg,
       editingProduct,
       openDropdown,
-      isEditing,
       formData,
       filteredProducts,
       allFilteredProducts, // For total count in pagination
       currentPage,         // For pagination
       itemsPerPage,        // For pagination
-      categories: computed(() => store.categories),
-      vendors: computed(() => store.vendors),
+      categories: store.categories,
+      subCategories: store.subCategories,
+      vendors: store.vendors,
       showAddProductForm,
       editProduct,
       hideModal,
@@ -632,10 +442,15 @@ export default {
       resetUnitConfig,
       formatUnitConfig,
       calculateTotalItems,
-      handleSubmit,
       toggleDropdown,
       closeDropdown,
       getThresholdInItems,
+      subCategoryOptions,
+      // Add missing properties for template
+      handleProductModalSubmit,
+      showDeleteModal,
+      itemToDelete,
+      cancelDelete,
     }
   }
 }

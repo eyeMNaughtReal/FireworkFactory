@@ -117,6 +117,14 @@
                 class="form-input"
               >
             </div>
+            <div class="form-group">
+              <label>Sub-Categories</label>
+              <div v-for="(sub, idx) in newCategory.subCategories" :key="idx" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input v-model="newCategory.subCategories[idx]" type="text" class="form-input" placeholder="Sub-Category name" />
+                <button type="button" class="btn-secondary" @click="newCategory.subCategories.splice(idx, 1)">Remove</button>
+              </div>
+              <button type="button" class="btn-primary" @click="newCategory.subCategories.push('')">Add Sub-Category</button>
+            </div>
             
             <div class="form-actions">
               <button type="button" @click="closeModal" class="btn-secondary">
@@ -149,6 +157,14 @@
                 placeholder="Enter category name" 
                 class="form-input"
               >
+            </div>
+            <div class="form-group">
+              <label>Sub-Categories</label>
+              <div v-for="(sub, idx) in editCategoryData.subCategories" :key="idx" style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input v-model="editCategoryData.subCategories[idx]" type="text" class="form-input" placeholder="Sub-Category name" />
+                <button type="button" class="btn-secondary" @click="editCategoryData.subCategories.splice(idx, 1)">Remove</button>
+              </div>
+              <button type="button" class="btn-primary" @click="editCategoryData.subCategories.push('')">Add Sub-Category</button>
             </div>
             <div class="form-actions">
               <button type="button" @click="closeModal" class="btn-secondary">
@@ -188,11 +204,14 @@ export default {
     const showAddForm = ref(false);
     const showEditForm = ref(false);
     const editCategoryData = reactive({ id: props.id || '', name: '' });
+    // Add subCategories to editCategoryData
+    editCategoryData.subCategories = [];
     const currentPage = ref(1);
     const itemsPerPage = ref(10);
 
     const newCategory = reactive({
-      name: ''
+      name: '',
+      subCategories: []
     });
 
     onMounted(async () => {
@@ -240,13 +259,15 @@ export default {
 
     const addCategory = async () => {
       if (!newCategory.name.trim()) return
-      
+      // Remove empty sub-categories
+      newCategory.subCategories = newCategory.subCategories.filter(s => s.trim())
       try {
         await store.addCategory({ ...newCategory })
         toast.success('Category created successfully')
         
         // Reset form
         newCategory.name = ''
+        newCategory.subCategories = []
         showAddForm.value = false
       } catch (error) {
         console.error('Failed to add category:', error)
@@ -257,17 +278,24 @@ export default {
     const editCategory = (category) => {
       editCategoryData.id = category.id
       editCategoryData.name = category.name
+      editCategoryData.subCategories = Array.isArray(category.subCategories) ? [...category.subCategories] : []
       showEditForm.value = true
     }
 
     const updateCategory = async () => {
       if (!editCategoryData.name.trim()) return
+      // Remove empty sub-categories
+      editCategoryData.subCategories = editCategoryData.subCategories.filter(s => s.trim())
       try {
-        await store.updateCategory(editCategoryData.id, { name: editCategoryData.name })
+        await store.updateCategory(editCategoryData.id, {
+          name: editCategoryData.name,
+          subCategories: editCategoryData.subCategories
+        })
         toast.success('Category updated successfully')
         showEditForm.value = false
         editCategoryData.id = ''
         editCategoryData.name = ''
+        editCategoryData.subCategories = []
       } catch (error) {
         console.error('Failed to update category:', error)
         toast.error('Failed to update category. Please try again.')

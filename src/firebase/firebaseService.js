@@ -132,6 +132,7 @@ class FirebaseService {
   }
 
   async addDocument(collectionName, data, metadata = null) {
+    console.log('firebaseService.addDocument payload:', collectionName, data);
     try {
       const docData = {
         ...data,
