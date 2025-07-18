@@ -76,7 +76,7 @@
               >
                 {{ getSeasonLabel(order.season) }}
               </span>
-              <span v-else class="text-muted">General Stock</span>
+              <!-- Removed 'General Stock' label -->
             </td>
             <td>
               <div class="dropdown" :class="{ 'dropdown-open': openDropdown === order.id }">
@@ -113,135 +113,37 @@
       />
     </div>
 
-    <!-- Order Form Modal -->
-    <div v-if="showOrderForm" class="modal-overlay" @click="closeModal">
-      <div class="modal modal-wide" @click.stop>
-        <div class="modal-header">
-          <h2>{{ editingOrder ? 'Edit Order' : 'New Order' }}</h2>
-          <button @click="closeModal" class="close-btn">&times;</button>
-        </div>
-
-        <form @submit.prevent="saveOrder" class="form">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Order Date</label>
-              <input 
-                type="date" 
-                v-model="formData.orderDate"
-                class="form-input"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label>Status</label>
-              <select v-model="formData.status" class="form-input">
-                <option value="ordered">Ordered</option>
-                <option value="received">Received</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Season</label>
-              <select v-model="formData.season" class="form-input">
-                <option value="">General Stock</option>
-                <option value="july-4th">4th of July</option>
-                <option value="new-years">New Year's</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-section">
-            <div class="section-header">
-              <h3>Order Items</h3>
-              <button type="button" @click="addOrderItem" class="btn-primary btn-compact">
-                Add Item
-              </button>
-            </div>
-
-            <table class="data-table order-items-table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Unit</th>
-                  <th>Quantity</th>
-                  <th>Unit Cost</th>
-                  <th>Total</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(item, index) in formData.items" :key="index">
-                  <td>
-                    <select v-model="item.productId" required class="form-input">
-                      <option value="">Select Product</option>
-                      <option v-for="product in products" :key="product.id" :value="product.id">
-                        {{ product.name }} ({{ getVendorName(getProductVendorId(product.id)) }})
-                      </option>
-                    </select>
-                  </td>
-                  <td>
-                    <select v-model="item.unit" class="form-input" @change="updateUnitConversion(item)">
-                      <option value="case">Case</option>
-                      <option value="pack">Pack</option>
-                      <option value="item">Item</option>
-                    </select>
-                    <div class="unit-info" v-if="item.productId">
-                      {{ getUnitInfo(item) }}
-                    </div>
-                  </td>
-                  <td>
-                    <input type="number" v-model.number="item.quantity" min="1" required class="form-input">
-                    <div class="unit-total" v-if="item.productId">
-                      Total Items: {{ calculateTotalItems(item) }}
-                    </div>
-                  </td>
-                  <td>
-                    <input type="number" v-model.number="item.unitCost" min="0" step="0.01" required class="form-input">
-                  </td>
-                  <td class="text-right">
-                    ${{ (item.quantity * item.unitCost || 0).toFixed(2) }}
-                  </td>
-                  <td>
-                    <button 
-                      type="button" 
-                      @click="removeOrderItem(index)" 
-                      class="btn-delete" 
-                      title="Remove Item"
-                      aria-label="Remove Item"
-                    >×</button>
-                  </td>
-                </tr>
-                <tr v-if="formData.items.length === 0">
-                  <td colspan="6" class="empty-message">
-                    Click "Add Item" to add products to this order
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot v-if="formData.items.length > 0">
-                <tr>
-                  <td colspan="4" class="text-right"><strong>Order Total:</strong></td>
-                  <td class="text-right"><strong>${{ orderTotal.toFixed(2) }}</strong></td>
-                  <td></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          <div class="form-actions">
-            <button type="button" @click="closeModal" class="btn-secondary">
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              class="btn-primary"
-              :disabled="!formData.items.length || submitting"
-            >
-              {{ submitting ? 'Saving...' : (editingOrder ? 'Update Order' : 'Create Order') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <!-- Reusable OrderModal Component -->
+    <OrderModal
+      :show="showOrderForm"
+      :order="formData"
+      :is-edit="!!editingOrder"
+      :products="products"
+      :vendors="vendors"
+      :submitting="submitting"
+      :getVendorName="getVendorName"
+      :getProductVendorId="getProductVendorId"
+      :getUnitInfo="getUnitInfo"
+      :calculateTotalItems="calculateTotalItems"
+      :order-total="orderTotal"
+      @submit="saveOrder"
+      @cancel="closeModal"
+      @addOrderItem="addOrderItem"
+      @removeOrderItem="removeOrderItem"
+      @openProductModal="openProductModal"
+      @updateUnitConversion="updateUnitConversion"
+    />
+    <!-- Reusable NewProductModal Component -->
+    <NewProductModal
+      :show="showProductModal"
+      :vendors="vendors"
+      :categories="categories"
+      :sub-category-options="subCategoryOptions"
+      :selected-category-id="selectedCategoryId"
+      :product="newProduct"
+      @submit="handleProductSubmit"
+      @cancel="closeProductModal"
+    />
   </div>
 </template>
 
@@ -251,11 +153,15 @@ import { useInventoryStore } from '@/stores/inventory'
 import { useRoute } from 'vue-router'
 import PagePagination from '@/components/PagePagination.vue'
 import { useToast } from '@/components/Toast.vue'
+import NewProductModal from '@/components/NewProductModal.vue'
+import OrderModal from '@/components/OrderModal.vue'
 
 export default {
   name: 'OrdersView',
   components: {
-    PagePagination
+    PagePagination,
+    NewProductModal,
+    OrderModal
   },
   setup() {
     const store = useInventoryStore()
@@ -328,6 +234,12 @@ export default {
 
     const products = computed(() => store.products)
     const vendors = computed(() => store.vendors)
+    const categories = computed(() => store.categories)
+    const selectedCategoryId = ref('')
+    const subCategoryOptions = computed(() => {
+      const selectedCat = store.categories.find(cat => cat.id === selectedCategoryId.value)
+      return selectedCat && Array.isArray(selectedCat.subCategories) ? selectedCat.subCategories : []
+    })
 
     const getVendorName = (vendorId) => {
       const vendor = vendors.value.find(v => v.id === vendorId)
@@ -608,7 +520,7 @@ export default {
     }
     
     const getSeasonLabel = (season) => {
-      if (!season) return 'General Stock'
+      if (!season) return ''
       
       const seasonLabels = {
         'july-4th': '4th of July',
@@ -652,6 +564,61 @@ export default {
       currentPage.value = 1
     })
 
+    // Quick Add Product Modal logic
+    const showProductModal = ref(false)
+    const newProduct = reactive({
+      name: '',
+      categoryId: '',
+      vendorId: '',
+      unitConfig: {
+        structure: '',
+        item: { type: 'item', conversionRate: 1 },
+        package: { type: 'package', conversionRate: 0 },
+        case: { type: 'case', conversionRate: 0 }
+      },
+      threshold: 0,
+      thresholdUnit: 'item'
+    })
+    const productModalIndex = ref(null)
+    const openProductModal = (index) => {
+      productModalIndex.value = index
+      showProductModal.value = true
+      newProduct.name = ''
+      newProduct.categoryId = ''
+      newProduct.vendorId = ''
+      newProduct.unitConfig = {
+        structure: '',
+        item: { type: 'item', conversionRate: 1 },
+        package: { type: 'package', conversionRate: 0 },
+        case: { type: 'case', conversionRate: 0 }
+      }
+      newProduct.threshold = 0
+      newProduct.thresholdUnit = 'item'
+      selectedCategoryId.value = ''
+    }
+    const closeProductModal = () => {
+      showProductModal.value = false
+      productModalIndex.value = null
+    }
+    // Handler for NewProductModal submit
+    const handleProductSubmit = async (productData) => {
+      let productId = null
+      try {
+        productId = await store.addProduct(productData)
+        await store.fetchProducts()
+        if (productModalIndex.value !== null) {
+          formData.items[productModalIndex.value].productId = productId
+        }
+      } catch (error) {
+        console.error('Product add error:', error)
+      }
+      closeProductModal()
+      if (productId) {
+        toast.success('Product added successfully')
+      } else {
+        toast.error('Failed to add product')
+      }
+    }
     return {
       toast,
       showOrderForm,
@@ -666,6 +633,9 @@ export default {
       seasonFilter,
       products,
       vendors,
+      categories,
+      selectedCategoryId,
+      subCategoryOptions,
       filteredOrders,
       paginatedOrders,
       currentPage,
@@ -687,7 +657,12 @@ export default {
       formatStatus,
       getSeasonLabel,
       toggleDropdown,
-      closeDropdown
+      closeDropdown,
+      showProductModal,
+      openProductModal,
+      closeProductModal,
+      handleProductSubmit,
+      newProduct
     }
   }
 }

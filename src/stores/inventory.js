@@ -115,18 +115,22 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('addCategory')
       
       try {
-        // Simplified category structure: only name and id
+        // Persist name and subCategories only if non-empty
         const newCategory = {
           name: categoryData.name
+        };
+        if (Array.isArray(categoryData.subCategories) && categoryData.subCategories.length > 0) {
+          newCategory.subCategories = categoryData.subCategories;
         }
-        
+
+        console.log('addCategory payload:', newCategory);
         const result = await firebaseService.addDocument(
-          firebaseService.collections.CATEGORIES, 
+          firebaseService.collections.CATEGORIES,
           newCategory
-        )
-        
-        this.categories.push(result)
-        return result
+        );
+
+        this.categories.push(result);
+        return result;
       } catch (error) {
         this.setError('addCategory', error)
         throw error
@@ -137,19 +141,23 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('updateCategory')
       
       try {
+        // Persist name and subCategories only if non-empty
         const updatedData = {
           name: categoryData.name
+        };
+        if (Array.isArray(categoryData.subCategories) && categoryData.subCategories.length > 0) {
+          updatedData.subCategories = categoryData.subCategories;
         }
-        
+
         const result = await firebaseService.updateDocument(
           firebaseService.collections.CATEGORIES,
           id,
           updatedData
-        )
-        
-        const index = this.categories.findIndex(cat => cat.id === id)
+        );
+
+        const index = this.categories.findIndex(cat => cat.id === id);
         if (index !== -1) {
-          this.categories[index] = { ...this.categories[index], ...updatedData }
+          this.categories[index] = { ...this.categories[index], ...updatedData };
         }
         
         return result
@@ -287,7 +295,32 @@ export const useInventoryStore = defineStore('inventory', {
       this.clearError('addProduct')
       
       try {
-        // Use the updated product structure with unitConfig
+        // Defensive: Guarantee all required unitConfig fields are present and not undefined
+        let unitConfig = productData.unitConfig || {
+          structure: 'item-case',
+          item: { type: 'item', conversionRate: 1 },
+          package: { type: 'package', conversionRate: 0 },
+          case: { type: 'case', conversionRate: 1 },
+          itemsPerCase: 0,
+          itemsPerPackage: 0,
+          itemsPerItem: 0,
+          totalItemsPerCase: 0,
+          packagesPerCase: 0 // Add missing field
+        };
+        // Guarantee all possible fields are present and not undefined
+        if (unitConfig.itemsPerCase === undefined) unitConfig.itemsPerCase = 0;
+        if (unitConfig.itemsPerPackage === undefined) unitConfig.itemsPerPackage = 0;
+        if (unitConfig.itemsPerItem === undefined) unitConfig.itemsPerItem = 0;
+        if (unitConfig.totalItemsPerCase === undefined) unitConfig.totalItemsPerCase = 0;
+        if (unitConfig.packagesPerCase === undefined) unitConfig.packagesPerCase = 0;
+        // Defensive: Guarantee nested conversionRates are numbers
+        if (!unitConfig.item) unitConfig.item = { type: 'item', conversionRate: 1 };
+        if (!unitConfig.package) unitConfig.package = { type: 'package', conversionRate: 0 };
+        if (!unitConfig.case) unitConfig.case = { type: 'case', conversionRate: 1 };
+        if (typeof unitConfig.item.conversionRate !== 'number') unitConfig.item.conversionRate = Number(unitConfig.item.conversionRate) || 1;
+        if (typeof unitConfig.package.conversionRate !== 'number') unitConfig.package.conversionRate = Number(unitConfig.package.conversionRate) || 0;
+        if (typeof unitConfig.case.conversionRate !== 'number') unitConfig.case.conversionRate = Number(unitConfig.case.conversionRate) || 1;
+
         const newProduct = {
           name: productData.name,
           categoryId: productData.categoryId,
@@ -295,30 +328,24 @@ export const useInventoryStore = defineStore('inventory', {
           lowInventoryThreshold: productData.lowInventoryThreshold || 0,
           thresholdUnit: productData.thresholdUnit || 'item',
           thresholdInItems: productData.thresholdInItems || 0,
-          unitConfig: productData.unitConfig || {
-            structure: 'item-case',
-            item: { type: 'item', conversionRate: 1 },
-            package: { type: 'package', conversionRate: 0 },
-            case: { type: 'case', conversionRate: 1 },
-            totalItemsPerCase: 1
-          }
-        }
-        
+          unitConfig
+        };
+
         // Make sure not to send the legacy 'units' field to Firestore
         if ('units' in newProduct) {
           delete newProduct.units;
         }
-        
+
         const result = await firebaseService.addDocument(
           firebaseService.collections.PRODUCTS,
           newProduct
-        )
-        
-        this.products.push(result)
-        return result
+        );
+
+        this.products.push(result);
+        return result;
       } catch (error) {
-        this.setError('addProduct', error)
-        throw error
+        this.setError('addProduct', error);
+        throw error;
       }
     },
     
