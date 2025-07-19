@@ -41,7 +41,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           git add package.json src/version.js
-          git commit -m "Bump version to $(node -p \"require('./package.json').version\")" || echo "No changes to commit"
+          git commit -m 'Bump version to $(node -p "require("./package.json").version")' || echo "No changes to commit"
           git pull --rebase origin main
           git push https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
       - name: Build
