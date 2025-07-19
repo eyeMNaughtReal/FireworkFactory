@@ -69,5 +69,5 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FIREWORK_FACTORY }}
           channelId: live
-          projectId: firework-factory
+          projectId: firework-factory-84c2b
 
