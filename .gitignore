@@ -51,8 +51,10 @@ Thumbs.db
 *~
 
 # Firebase
+
 .firebase/
 *.cache
+src/firebase/config.js
 
 # Debug Files
 debug.log
