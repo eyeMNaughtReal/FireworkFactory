@@ -578,13 +578,15 @@ export const useInventoryStore = defineStore('inventory', {
           };
           
           // Enhanced metadata for audit trail
-          const metadata = { 
+          let metadata = { 
             previousData,
             inventoryId: existingInventory.id,
             productId: productId,
             productName: this.getProductById(productId)?.name || 'Unknown Product',
             reason: 'Inventory update',
-            changeType: 'quantity_update'
+            changeType: 'quantity_update',
+            source: quantityInput && quantityInput._source ? quantityInput._source : 'manual',
+            season: quantityInput && quantityInput._season ? quantityInput._season : undefined
           };
           
           const result = await firebaseService.updateDocument(
@@ -663,7 +665,13 @@ export const useInventoryStore = defineStore('inventory', {
           
           console.log(`Updating inventory for product ${item.productId}: Current: ${currentQuantity}, Adding: ${itemQuantity}, New: ${newQuantity}`);
           
-          await this.updateInventory(item.productId, newQuantity);
+          // Pass source and season for audit log
+          await this.updateInventory(item.productId, {
+            quantity: newQuantity,
+            location: item.location,
+            _source: 'order',
+            _season: order.season || undefined
+          });
         } catch (error) {
           console.error('Error updating inventory from order:', error);
         }
